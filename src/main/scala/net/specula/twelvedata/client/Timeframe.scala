@@ -5,6 +5,9 @@ import zio.*
 
 import java.time.{Instant, ZoneOffset}
 
+case class TimeSeriesIntervalQuery(symbols: List[Symbol], 
+                                   timeSeriesInterval: TimeSeriesInterval)
+
 sealed abstract class TimeSeriesInterval(val apiName: String)
 object TimeSeriesInterval {
   case object OneMinute extends TimeSeriesInterval("1min")

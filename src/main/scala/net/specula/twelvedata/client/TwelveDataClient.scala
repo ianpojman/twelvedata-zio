@@ -8,16 +8,16 @@ import zio.http.Client
 import java.time.{Instant, LocalDate, Period, ZoneOffset}
 
 
-
+// TODO: spot silver/gold price: https://api.twelvedata.com/exchange_rate?symbol=XAG/USD&apikey=bf7d15e28ce44d62bf20f944901cc398
 object TwelveDataClient {
   val baseUrl = "https://api.twelvedata.com" //quote?apikey=&symbol='
 
   import ApiQuote.*
   import zio.json.*
 
-  type ApiQueryRequirements = Client & TwelveDataConfig & List[Symbol]
+  type ApiQueryRequirements = Client & TwelveDataConfig
 
-  val fetchQuote: ZIO[ApiQueryRequirements, Throwable, Either[String, ApiQuote]] = for {
+  val fetchQuote: ZIO[ApiQueryRequirements & List[Symbol], Throwable, Either[String, ApiQuote]] = for {
     symbols <- ZIO.service[List[Symbol]]
     config <- ZIO.service[TwelveDataConfig]
     url = TwelveDataClient.baseUrl + s"/quote?symbol=${symbols.map(_.name).mkString(",")}&apikey=${config.apiKey}"
@@ -26,7 +26,7 @@ object TwelveDataClient {
     response <- res.body.asString
   } yield response.fromJson[ApiQuote]
 
-  val fetchPrices: ZIO[ApiQueryRequirements, Throwable, Either[String, PriceByTickerMap]] = {
+  val fetchPrices: ZIO[ApiQueryRequirements & List[Symbol], Throwable, Either[String, PriceByTickerMap]] = {
     import ApiCodecs.*
     for {
       symbols <- ZIO.service[List[Symbol]]
@@ -70,20 +70,38 @@ object TwelveDataClient {
    *    }, ...
    * }}}
    * */
-  val fetchHistoricalPriceChanges: ZIO[ApiQueryRequirements & TimeSeriesInterval, Throwable, Either[String, TimeSeriesResponse]] = {
+  val fetchHistoricalPriceChanges: ZIO[ApiQueryRequirements & TimeSeriesIntervalQuery, Throwable, Either[String, MultiTickerTimeSeriesResponse]] = {
     import TimeSeriesCodecs.*
 
     for {
-      symbols <- ZIO.service[List[Symbol]]
-      interval <- ZIO.service[TimeSeriesInterval]
+      interval <- ZIO.service[TimeSeriesIntervalQuery]
+      symbols = interval.symbols
       config <- ZIO.service[TwelveDataConfig]
-      url = TwelveDataClient.baseUrl + s"/time_series?interval=${interval.apiName}&symbol=${symbols.map(_.name).mkString(",")}&apikey=${config.apiKey}"
+      url = TwelveDataClient.baseUrl + s"/time_series?interval=${interval.timeSeriesInterval.apiName}" +
+        s"&symbol=${symbols.map(_.name).mkString(",")}" +
+        s"&end_date=2023-05-12" +
+        s"&apikey=${config.apiKey}"
       _ <- zio.Console.printLine(s"URL: $url")
       res <- Client.request(url)
       response <- res.body.asString
       _ <- Console.printLine("Got response: "+response)
-    } yield response.fromJson[Map[String, TimeSeriesItems]]
+      response2 <- ZIO.attempt {
+        symbols.headOption match {
+          case Some(Symbol(singleTicker)) if symbols.size == 1 => // single ticker case
+            val res: Either[String, Map[String, TimeSeriesItems]] = response.fromJson[TimeSeriesItems]
+              .map(items => Map(singleTicker -> items))
+            res
+          // we normalize the response to look like the same as the multi ticker response, so same return type can be used
+          case other =>
+            response.fromJson[MultiTickerTimeSeriesResponseJson]
+        }
+      }
+    } yield {
+      response2
+    }
   }
+  
+  // TimeSeriesItem(2023-05-01 15:30:00
 }
 
 

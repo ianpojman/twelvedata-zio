@@ -44,12 +44,13 @@ package object client {
                             high: Double,
                             low: Double,
                             close: Double,
-                            volume: Int)
+                            volume: Option[Double])
 
 
   object TimeSeriesCodecs {
     implicit val timeSeriesItemDecoder: JsonDecoder[TimeSeriesItem] = DeriveJsonDecoder.gen
     implicit val timeSeriesItemsDecoder: JsonDecoder[TimeSeriesItems] = DeriveJsonDecoder.gen
   }
-  type TimeSeriesResponse = Map[String, TimeSeriesItems]
+  type MultiTickerTimeSeriesResponse = Map[String, TimeSeriesItems]
+  type MultiTickerTimeSeriesResponseJson = Map[String, TimeSeriesItems]
 }
