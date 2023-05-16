@@ -6,19 +6,16 @@ import zio.{Schedule, ZIO, ZIOAppDefault, ZLayer}
 
 object TwelveDataClientExample extends ZIOAppDefault {
 
-  NetworkConfigurationUtil.trDisableIPv6()
+  NetworkConfigurationUtil.tryDisableIPv6()
 
   import zio._
-
-  private val testLayers =
-    Client.default ++ ZLayer.fromZIO(TwelveDataConfig.loadConfig)
 
   val retryPolicy = (Schedule.exponential(10.milliseconds) >>> Schedule.elapsed).whileOutput(_ < 30.seconds)
 
   private val fetchPrices = {
     val tickers = "BTC/USD".split(",").map(Symbol(_)).toList
     for {
-      tickers <- TwelveDataClient.fetchPrices.provide(testLayers ++ ZLayer.succeed(tickers)).retry(retryPolicy)
+      tickers <- TwelveDataClient.fetchPrices.provide(Layers.defaultLayers ++ ZLayer.succeed(tickers)).retry(retryPolicy)
       _ <- zio.Console.printLine("quotes = " + tickers)
     } yield ()
   }
@@ -28,7 +25,7 @@ object TwelveDataClientExample extends ZIOAppDefault {
     val query = TimeSeriesIntervalQuery(tickers, TimeSeriesInterval.ThirtyMinutes)
     for {
       timeSeriesItems <- TwelveDataClient.fetchHistoricalPriceChanges
-        .provide(testLayers ++  ZLayer.succeed(query))
+        .provide(Layers.defaultLayers ++  ZLayer.succeed(query))
       //_ <- zio.Console.printLine("time series interval response = " + tickers)
       _ <- timeSeriesItems match
         case Left(value) =>

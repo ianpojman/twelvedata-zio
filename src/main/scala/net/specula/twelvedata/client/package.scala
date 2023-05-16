@@ -1,9 +1,11 @@
 package net.specula.twelvedata
 
 import net.specula.twelvedata.client.model.twelvedata.ApiPrice
+import zio.http.Client
 import zio.json.{DeriveJsonDecoder, JsonDecoder}
 
 package object client {
+  type ApiQueryRequirements = Client & TwelveDataConfig
 
   type PriceByTickerMap = Map[String, ApiPrice]
 

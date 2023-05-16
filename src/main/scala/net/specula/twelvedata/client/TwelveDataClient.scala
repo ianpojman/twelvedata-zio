@@ -15,8 +15,6 @@ object TwelveDataClient {
   import ApiQuote.*
   import zio.json.*
 
-  type ApiQueryRequirements = Client & TwelveDataConfig
-
   val fetchQuote: ZIO[ApiQueryRequirements & List[Symbol], Throwable, Either[String, ApiQuote]] = for {
     symbols <- ZIO.service[List[Symbol]]
     config <- ZIO.service[TwelveDataConfig]
@@ -101,6 +99,9 @@ object TwelveDataClient {
     }
   }
   
+  def websocket = {
+
+  }
   // TimeSeriesItem(2023-05-01 15:30:00
 }
 
