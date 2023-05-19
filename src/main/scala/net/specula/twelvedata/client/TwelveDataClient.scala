@@ -1,7 +1,6 @@
 package net.specula.twelvedata.client
 
-import net.specula.twelvedata.client.model.Price
-import net.specula.twelvedata.client.model.twelvedata.*
+import net.specula.twelvedata.client.model.ApiQuote
 import zio.*
 import zio.http.Client
 
@@ -12,7 +11,6 @@ import java.time.{Instant, LocalDate, Period, ZoneOffset}
 object TwelveDataClient {
   val baseUrl = "https://api.twelvedata.com" //quote?apikey=&symbol='
 
-  import ApiQuote.*
   import zio.json.*
 
   val fetchQuote: ZIO[ApiQueryRequirements & List[Symbol], Throwable, Either[String, ApiQuote]] = for {
@@ -25,7 +23,7 @@ object TwelveDataClient {
   } yield response.fromJson[ApiQuote]
 
   val fetchPrices: ZIO[ApiQueryRequirements & List[Symbol], Throwable, Either[String, PriceByTickerMap]] = {
-    import ApiCodecs.*
+    import net.specula.twelvedata.client.model.ApiCodecs.*
     for {
       symbols <- ZIO.service[List[Symbol]]
       config <- ZIO.service[TwelveDataConfig]

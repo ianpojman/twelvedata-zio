@@ -1,5 +1,6 @@
 package net.specula.twelvedata.client
 
+import net.specula.twelvedata.client.model.Event
 import net.specula.twelvedata.client.util.NetworkConfigurationUtil
 import zio.*
 import zio.http.ChannelEvent.{ChannelRead, ChannelRegistered, ExceptionCaught, UserEvent, UserEventTriggered}
@@ -24,7 +25,10 @@ object TwelveDataWebsocketClient {
   // Listen for all websocket channel events
     Http.collectZIO[WebSocketChannelEvent] {
       case ChannelEvent(ch, ChannelRead(WebSocketFrame.Text(t))) =>
-        ZIO.logInfo(s"Received text: ${t}")
+        import zio.json._
+        import net.specula.twelvedata.client.model.EventCodecs._
+        val e = t.fromJson[Event]
+        ZIO.logInfo(s"Received event: ${e}")
 
       case ChannelEvent(ch, UserEventTriggered(HandshakeComplete)) =>
         zio.Console.printLine("Subscribing...") *>

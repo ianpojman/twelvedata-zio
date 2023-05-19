@@ -1,6 +1,6 @@
 package net.specula.twelvedata
 
-import net.specula.twelvedata.client.model.twelvedata.ApiPrice
+import net.specula.twelvedata.client.model.ApiPrice
 import zio.http.Client
 import zio.json.{DeriveJsonDecoder, JsonDecoder}
 

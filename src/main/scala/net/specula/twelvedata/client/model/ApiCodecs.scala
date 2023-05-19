@@ -1,4 +1,4 @@
-package net.specula.twelvedata.client.model.twelvedata
+package net.specula.twelvedata.client.model
 
 import zio.json.{DeriveJsonDecoder, JsonDecoder}
 
