@@ -3,8 +3,8 @@ package net.specula.twelvedata.client
 import net.specula.twelvedata.Price
 import net.specula.twelvedata.client.model.Event
 import net.specula.twelvedata.client.util.NetworkConfigurationUtil
-import zio.*
-import zio.http.ChannelEvent.{ChannelRead, ChannelRegistered, ExceptionCaught, UserEvent, UserEventTriggered}
+import zio.{Queue, *}
+import zio.http.ChannelEvent.{ChannelRead, ChannelRegistered, ExceptionCaught, UserEvent, UserEventTriggered, exceptionCaught}
 import zio.http.socket.{SocketApp, WebSocketChannelEvent, WebSocketFrame}
 import zio.http.*
 import zio.http.ChannelEvent.UserEvent.HandshakeComplete
@@ -12,26 +12,59 @@ import zio.stream.ZStream
 
 import scala.util.Right
 
-
-object TwelveDataWebsocketClientExample extends ZIOAppDefault {
-  NetworkConfigurationUtil.tryDisableIPv6()
-
-  override def run: ZIO[Any with ZIOAppArgs with Scope, Any, Any] =
-    TwelveDataWebsocketClient.app
-      .provide(Scope.default, Layers.defaultLayers)
-
+trait PriceHandler {
+  def accept(p: Price): Task[Unit]
 }
 
+case class Tickers(tickers: Set[String])
 object TwelveDataWebsocketClient {
 
   import zio.json._
   import net.specula.twelvedata.client.model.EventCodecs._
 
-  // A promise is used to be able to notify application about websocket errors
-  def makeHttpSocket(p: Promise[Nothing, Throwable],
-                     q: Queue[Event]): Http[Any, Throwable, WebSocketChannelEvent, AnyVal] =
+  /** Opens a websocket with Twelvedata API and streams the configured prices */
+  val priceStreamingWebsocketApp: ZIO[Tickers with PriceHandler with ApiQueryRequirements with Client with Scope, Throwable, Unit] = {
+    (for {
+      p <- zio.Promise.make[Nothing, Throwable]
+      config <- ZIO.service[TwelveDataConfig]
+      ph <- ZIO.service[PriceHandler]
+      tickers <- ZIO.service[Tickers]
+      url = s"wss://ws.twelvedata.com/v1/quotes/price?apikey=${config.apiKey}"
+      q <- Queue.unbounded[Event]
+      _ <- ZStream.fromQueue(q).foreach(e =>
+        Price.fromEvent(e) match
+          case Some(p) =>
+            ZIO.attempt(println(s"Received event $e"))
+            ph.accept(p)
+          case None =>
+            ZIO.attempt(println(s"Received event $e"))
+      ).fork
+
+      _ <- makeHttpSocket(p, q, tickers).toSocketApp.connect(url)
+        .catchAll { t =>
+          p.succeed(t) // convert a failed connection attempt to an error to trigger a reconnect
+        }
+      f <- p.await
+//      _ <- consumeQueue.interrupt
+      _ <- ZIO.logError(s"Connection failed: $f")
+      _ <- ZIO.logError(s"Trying to reconnect...")
+      _ <- ZIO.sleep(1.seconds)
+
+    } yield {}) *> priceStreamingWebsocketApp
+  }
+
+
+  /**
+   * @param p A promise is used to be able to notify application about websocket errors
+   * @param q Queue to store messages on as we receive them
+   * */
+  private def makeHttpSocket(p: Promise[Nothing, Throwable],
+                             q: Queue[Event],
+                             tickers: Tickers): Http[Any, Throwable, WebSocketChannelEvent, AnyVal] =
     Http.collectZIO[WebSocketChannelEvent] {
         case ChannelEvent(ch, ChannelRead(WebSocketFrame.Text(t))) =>
+//          println("RAW EVENT: "+ t)
+
           val maybeE = t.fromJson[Event]
           maybeE match {
             case Left(e) => ZIO.logWarning(s"Error receiving event: $e")
@@ -45,7 +78,7 @@ object TwelveDataWebsocketClient {
                  |{
                  |  "action": "subscribe",
                  |  "params": {
-                 |	"symbols": "AAPL,INFY,TRP,QQQ,IXIC,EUR/USD,USD/JPY,BTC/USD,ETH/BTC"
+                 |	"symbols": "${tickers.tickers.mkString(",")}"
                  |  }
                  |}
                  |
@@ -62,46 +95,6 @@ object TwelveDataWebsocketClient {
         // signal failure to application
         p.succeed(f)
       }
-
-
-  class PriceMonitor {
-    def accept(e: Event): Task[Unit] = {
-      Price.fromEvent(e) match
-        case Some(value) =>
-          ZIO.attempt(println(s"Received price $value"))
-        case None =>
-          ZIO.attempt(println(s"Received event $e"))
-    }
-  }
-  object PriceMonitor {
-    val create: Task[PriceMonitor] = ZIO.attempt(new PriceMonitor)
-  }
-
-  val app: ZIO[ApiQueryRequirements with Client with Scope, Throwable, Unit] = {
-    (for {
-      p <- zio.Promise.make[Nothing, Throwable]
-      config <- ZIO.service[TwelveDataConfig]
-      url = s"wss://ws.twelvedata.com/v1/quotes/price?apikey=${config.apiKey}"
-      q <- Queue.unbounded[Event]
-      s  <- PriceMonitor.create
-      consumeQueue <- ZStream.fromQueue(q).foreach(e =>
-        s.accept(e)
-      ).fork
-
-      r <- makeHttpSocket(p, q).toSocketApp.connect(url)
-        .catchAll { t =>
-          p.succeed(t) // convert a failed connection attempt to an error to trigger a reconnect
-        }
-      f <- p.await
-      _ <- consumeQueue.interrupt
-      _ <- ZIO.logError(s"App failed: $f")
-      _ <- ZIO.logError(s"Trying to reconnect...")
-      _ <- ZIO.sleep(1.seconds)
-
-    } yield {
-      ()
-    }) *> app
-  }
 
 
 }
