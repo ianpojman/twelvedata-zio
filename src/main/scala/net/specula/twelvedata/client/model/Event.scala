@@ -11,13 +11,14 @@ import zio.json.{DeriveJsonDecoder, JsonDecoder, SnakeCase, jsonMemberNames}
  * */
 @jsonMemberNames(SnakeCase)
 case class Event(event: String,
-                 symbol: String,
+                 status: Option[String],
+                 symbol: Option[String],
                  currency: Option[String],
                  exchange: Option[String],
                  micCode: Option[String],
-                 `type`: String,
-                 timestamp: Long,
-                 price: Double,
+                 `type`: Option[String],
+                 timestamp: Option[Long],
+                 price: Option[Double],
                  dayVolume: Option[Double])
 
 object EventCodecs {
