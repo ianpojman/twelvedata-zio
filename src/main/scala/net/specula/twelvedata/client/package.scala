@@ -7,7 +7,7 @@ import zio.json.{DeriveJsonDecoder, JsonDecoder}
 package object client {
   type ApiQueryRequirements = Client & TwelveDataConfig
 
-  type PriceByTickerMap = Map[String, ApiPrice]
+  type TickerToApiPriceMap = Map[String, ApiPrice]
 
   /*
   {
@@ -54,5 +54,5 @@ package object client {
     implicit val timeSeriesItemsDecoder: JsonDecoder[TimeSeriesItems] = DeriveJsonDecoder.gen
   }
   type MultiTickerTimeSeriesResponse = Map[String, TimeSeriesItems]
-  type MultiTickerTimeSeriesResponseJson = Map[String, TimeSeriesItems]
+  type TickerToTimeSeriesItemMap = Map[String, TimeSeriesItems]
 }

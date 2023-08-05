@@ -17,6 +17,7 @@ trait PriceHandler {
 }
 
 case class Tickers(tickers: Set[String])
+
 object TwelveDataWebsocketClient {
 
   import zio.json._
@@ -40,7 +41,7 @@ object TwelveDataWebsocketClient {
             ZIO.attempt(println(s"Received event $e"))
       ).fork
 
-      _ <- makeHttpSocket(p, q, tickers).toSocketApp.connect(url)
+      _ <- createStreamTickersWebsocket(p, q, tickers).toSocketApp.connect(url)
         .catchAll { t =>
           p.succeed(t) // convert a failed connection attempt to an error to trigger a reconnect
         }
@@ -58,9 +59,9 @@ object TwelveDataWebsocketClient {
    * @param p A promise is used to be able to notify application about websocket errors
    * @param q Queue to store messages on as we receive them
    * */
-  private def makeHttpSocket(p: Promise[Nothing, Throwable],
-                             q: Queue[Event],
-                             tickers: Tickers): Http[Any, Throwable, WebSocketChannelEvent, AnyVal] =
+  def createStreamTickersWebsocket(p: Promise[Nothing, Throwable],
+                                   q: Queue[Event],
+                                   tickers: Tickers): Http[Any, Throwable, WebSocketChannelEvent, AnyVal] =
     Http.collectZIO[WebSocketChannelEvent] {
         case ChannelEvent(ch, ChannelRead(WebSocketFrame.Text(t))) =>
 //          println("RAW EVENT: "+ t)
