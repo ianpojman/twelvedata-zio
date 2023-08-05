@@ -1,11 +1,10 @@
 package net.specula.twelvedata.client
 
-import net.specula.twelvedata.client.util.NetworkConfigurationUtil
 import zio.http.Client
 import zio.test.*
 import zio.{Schedule, ZIO, ZIOAppDefault, ZLayer, *}
 
-/** These tests require Api key to bet set up locally */
+/** These tests require Api key to be set up locally. They verify basic response parsing is working */
 object IntegrationTests extends ZIOSpecDefault {
   def spec = suite("api integration tests")(
     test("fetch single price") {
@@ -31,9 +30,8 @@ object IntegrationTests extends ZIOSpecDefault {
   private def fetchPrices(symbols: String*): ZIO[Any, Throwable, TickerToApiPriceMap] = {
     val symbolList = symbols.map(Symbol(_)).toList
     for {
-      tickers <- TwelveDataClient.fetchPrices.provide(Layers.defaultLayers ++ ZLayer.succeed(symbolList))
-        .tapError(e => Console.printLine("error = " + e))
-        .retry(retryPolicy)
+      tickers <- TwelveDataClient.fetchPrices
+        .provide(Layers.defaultLayers ++ ZLayer.succeed(symbolList))
       _ <- zio.Console.printLine("Prices = " + tickers)
     } yield tickers
   }
@@ -42,19 +40,9 @@ object IntegrationTests extends ZIOSpecDefault {
     val symbols = tickers.map(_.ensuring(!_.contains(","))).map(Symbol(_)).toList
     val query = TimeSeriesIntervalQuery(symbols, timeSeriesInterval)
     for {
-      timeSeriesItems: MultiTickerTimeSeriesResponse <-
+      timeSeriesItems <-
         TwelveDataClient.fetchHistoricalPriceChanges
           .provide(Layers.defaultLayers ++ ZLayer.succeed(query))
-
-      //_ <- zio.Console.printLine("time series interval response = " + tickers)
-      //      _ <- ZIO.foreachDiscard(timeSeriesItems) { case (k,v) =>
-      //          //ZIO.succeed(println(s"$k -> $v"))
-      //          val msg = v.values.take(5).map { x =>
-      //            s"$k @ ${x.datetime} -> close price: ${x.close}"
-      //          }.mkString("\n")
-      //          Console.printLine(msg)
-      //        }
-
     } yield timeSeriesItems
   }
 
