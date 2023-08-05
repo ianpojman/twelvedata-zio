@@ -21,14 +21,14 @@ object IntegrationTests extends ZIOSpecDefault {
     test("fetch time series") {
       for {
         response <- fetchTimeseries(TimeSeriesInterval.OneMinute, "AAPL", "MSFT")
-      } yield assertTrue(response.keySet == Set("AAPL", "MSFT"))
+      } yield assertTrue(response.keySet == Set(Symbol.fromString("AAPL"), Symbol.fromString("MSFT")))
     },
   )
 
   val retryPolicy = (Schedule.exponential(10.milliseconds) >>> Schedule.elapsed).whileOutput(_ < 30.seconds)
 
   private def fetchPrices(symbols: String*): ZIO[Any, Throwable, TickerToApiPriceMap] = {
-    val symbolList = symbols.map(Symbol(_)).toList
+    val symbolList = symbols.map(Symbol.fromString(_)).toList
     for {
       tickers <- TwelveDataClient.fetchPrices
         .provide(Layers.defaultLayers ++ ZLayer.succeed(symbolList))
@@ -37,8 +37,8 @@ object IntegrationTests extends ZIOSpecDefault {
   }
 
   private def fetchTimeseries(timeSeriesInterval: TimeSeriesInterval, tickers: String*) = {
-    val symbols = tickers.map(_.ensuring(!_.contains(","))).map(Symbol(_)).toList
-    val query = TimeSeriesIntervalQuery(symbols, timeSeriesInterval)
+    val symbols = tickers.map(_.ensuring(!_.contains(","))).toList
+    val query = TimeSeriesIntervalQuery(symbols.map(Symbol.fromString), timeSeriesInterval)
     for {
       timeSeriesItems <-
         TwelveDataClient.fetchHistoricalPriceChanges

@@ -107,10 +107,10 @@ object TwelveDataClient {
    *    }, ...
    * }}}
    * */
-  val fetchHistoricalPriceChanges: ZIO[ApiQueryRequirements & TimeSeriesIntervalQuery, Throwable, MultiTickerTimeSeriesResponse] = {
+  val fetchHistoricalPriceChanges: ZIO[ApiQueryRequirements & TimeSeriesIntervalQuery, Throwable, Map[Symbol, TimeSeriesItems]] = {
     import TimeSeriesCodecs.*
 
-    val either: ZIO[Client with TwelveDataConfig with TimeSeriesIntervalQuery, Throwable, TickerToTimeSeriesItemMap] = for {
+    for {
       interval <- ZIO.service[TimeSeriesIntervalQuery]
       symbols = interval.symbols
       config <- ZIO.service[TwelveDataConfig]
@@ -121,23 +121,28 @@ object TwelveDataClient {
       _ <- zio.Console.printLine(s"URL: $url")
       res <- Client.request(url)
       response <- res.body.asString
-//      _ <- Console.printLine("Got response: " + response)
-      tickerToTimeSeriesMap: TickerToTimeSeriesItemMap <- {
-        val e: Either[String, TickerToTimeSeriesItemMap] = symbols.headOption match {
-          case Some(Symbol(singleTicker)) if symbols.size == 1 => // single ticker case
-            val res: Either[String, Map[String, TimeSeriesItems]] = response.fromJson[TimeSeriesItems]
-              .map(items => Map(singleTicker -> items))
-            res
-          // we normalize the response to look like the same as the multi ticker response, so same return type can be used
-          case _ =>
+
+      // as in other endpoints, the response body format varies depending on whether multiple tickers are being queried.
+      // when multiple `Symbol`s are provided, the response body is a `Map` of `Symbol`s to `TimeSeriesItems`.
+      // when a single `Symbol` is provided, the response body is just the single `TimeSeriesItems`.
+      remoteResponseParsed: Either[String, TickerToTimeSeriesItemMap] =
+        symbols match {
+          case List(singleSymbol) =>
+            response.fromJson[TimeSeriesItems].map(timeSeriesItem => Map(singleSymbol.name -> timeSeriesItem))
+          case Nil =>
+            sys.error("Symbols required")
+          case l =>
             response.fromJson[TickerToTimeSeriesItemMap]
         }
-        ZIO.fromEither(e.left.map(new RuntimeException(_)))
-      }
+
+        // convert the twelvedata api either to a ZIO function
+      res2 <- ZIO.fromEither(remoteResponseParsed)
+        .mapError(new RuntimeException(_))
+        .map(_.map { case (k, v) => Symbol.fromString(k) -> v }.toMap)
     } yield {
-      tickerToTimeSeriesMap
+      res2
     }
-    either
+
   }
 
   def websocket = {

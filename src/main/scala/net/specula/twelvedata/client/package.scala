@@ -2,7 +2,7 @@ package net.specula.twelvedata
 
 import net.specula.twelvedata.client.model.ApiPrice
 import zio.http.Client
-import zio.json.{DeriveJsonDecoder, JsonDecoder}
+import zio.json.{DeriveJsonDecoder, DeriveJsonEncoder, JsonDecoder, JsonEncoder}
 
 package object client {
   type ApiQueryRequirements = Client & TwelveDataConfig
@@ -41,6 +41,7 @@ package object client {
   */
 
   case class TimeSeriesItems(values: List[TimeSeriesItem])
+
   case class TimeSeriesItem(datetime: String,
                             open: Double,
                             high: Double,
@@ -52,7 +53,9 @@ package object client {
   object TimeSeriesCodecs {
     implicit val timeSeriesItemDecoder: JsonDecoder[TimeSeriesItem] = DeriveJsonDecoder.gen
     implicit val timeSeriesItemsDecoder: JsonDecoder[TimeSeriesItems] = DeriveJsonDecoder.gen
+
+    //But no implicit values were found that match type zio.json.JsonFieldEncoder[net.specula.twelvedata.client.].
+
   }
-  type MultiTickerTimeSeriesResponse = Map[String, TimeSeriesItems]
   type TickerToTimeSeriesItemMap = Map[String, TimeSeriesItems]
 }

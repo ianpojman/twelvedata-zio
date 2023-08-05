@@ -5,11 +5,15 @@ import zio.*
 
 import java.time.{Instant, ZoneOffset}
 
-case class TimeSeriesIntervalQuery(symbols: List[Symbol], 
+/** Query for time series data, from the current time backwards, at the interval specified */
+case class TimeSeriesIntervalQuery(symbols: List[Symbol],
                                    timeSeriesInterval: TimeSeriesInterval)
+
 
 sealed abstract class TimeSeriesInterval(val apiName: String)
 object TimeSeriesInterval {
+  def fromStrings(s: String*): List[Symbol] = s.map(Symbol.fromString(_)).toList
+  
   case object OneMinute extends TimeSeriesInterval("1min")
   case object FiveMinutes extends TimeSeriesInterval("5min")
   case object FifteenMinutes extends TimeSeriesInterval("15min")
