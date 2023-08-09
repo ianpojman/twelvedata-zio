@@ -1,6 +1,6 @@
 package net.specula.twelvedata.client
 
-import zio.{Config, ConfigProvider, IO}
+import zio.{Config, ConfigProvider, IO, ZLayer}
 
 import java.io.File
 
@@ -12,6 +12,8 @@ object TwelveDataConfig:
   import zio.config.magnolia._
 
   private val myConfigAutomatic = deriveConfig[TwelveDataConfig]
+
+  val live = ZLayer.fromZIO(loadConfig)
 
   val loadConfig: IO[Config.Error, TwelveDataConfig] = {
     val p = ConfigProvider.fromHoconFile(new File(sys.props.getOrElse("user.home", "")+"/.twelvedata.conf"))

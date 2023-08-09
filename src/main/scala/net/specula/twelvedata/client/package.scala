@@ -1,11 +1,10 @@
 package net.specula.twelvedata
 
-import net.specula.twelvedata.client.model.ApiPrice
+import net.specula.twelvedata.client.model.{ApiPrice, DataElement, Indicator, Meta, TwelveDataHistoricalDataRequest, TwelveDataHistoricalDataResponse, Value}
 import zio.http.Client
 import zio.json.{DeriveJsonDecoder, DeriveJsonEncoder, JsonDecoder, JsonEncoder}
 
 package object client {
-  type ApiQueryRequirements = Client & TwelveDataConfig
 
   type TickerToApiPriceMap = Map[String, ApiPrice]
 
@@ -50,12 +49,18 @@ package object client {
                             volume: Option[Double])
 
 
-  object TimeSeriesCodecs {
+  object JsonCodecs {
     implicit val timeSeriesItemDecoder: JsonDecoder[TimeSeriesItem] = DeriveJsonDecoder.gen
     implicit val timeSeriesItemsDecoder: JsonDecoder[TimeSeriesItems] = DeriveJsonDecoder.gen
-
-    //But no implicit values were found that match type zio.json.JsonFieldEncoder[net.specula.twelvedata.client.].
-
+    implicit val symbolEncoder: JsonEncoder[Symbol] = DeriveJsonEncoder.gen
+    implicit val symbolDecoder: JsonDecoder[Symbol] = DeriveJsonDecoder.gen
+    implicit val historicalDataRequestDecoder: JsonDecoder[TwelveDataHistoricalDataRequest] = DeriveJsonDecoder.gen
+    implicit val historicalDataRequestEncoder: JsonEncoder[TwelveDataHistoricalDataRequest] = DeriveJsonEncoder.gen
+    implicit val dataElementDecoder: JsonDecoder[DataElement] = DeriveJsonDecoder.gen
+    implicit val valueDecoder: JsonDecoder[Value] = DeriveJsonDecoder.gen
+    implicit val indicatorDecoder: JsonDecoder[Indicator] = DeriveJsonDecoder.gen
+    implicit val metaDecoder: JsonDecoder[Meta] = DeriveJsonDecoder.gen
+    implicit val TwelveDataResponseDecoder: JsonDecoder[TwelveDataHistoricalDataResponse] = DeriveJsonDecoder.gen
   }
   type TickerToTimeSeriesItemMap = Map[String, TimeSeriesItems]
 }

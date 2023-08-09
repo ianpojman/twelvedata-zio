@@ -16,7 +16,7 @@ libraryDependencies ++= Seq(
 )
 
 
-// testing --------------------------------------------------
+  // testing --------------------------------------------------
 
 // for some reason ipv6 is enabled by default and is broken
 Global / javaOptions += "-Djava.net.preferIPv4Stack=true"

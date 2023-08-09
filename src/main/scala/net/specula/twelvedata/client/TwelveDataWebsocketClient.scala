@@ -1,9 +1,8 @@
 package net.specula.twelvedata.client
 
-import net.specula.twelvedata.Price
-import net.specula.twelvedata.client.model.Event
+import net.specula.twelvedata.client.model.{Event, Price, PriceResponse}
 import net.specula.twelvedata.client.util.NetworkConfigurationUtil
-import zio.{Queue, *}
+import zio.*
 import zio.http.ChannelEvent.{ChannelRead, ChannelRegistered, ExceptionCaught, UserEvent, UserEventTriggered, exceptionCaught}
 import zio.http.socket.{SocketApp, WebSocketChannelEvent, WebSocketFrame}
 import zio.http.*
@@ -13,7 +12,7 @@ import zio.stream.ZStream
 import scala.util.Right
 
 trait PriceHandler {
-  def accept(p: Price): Task[Unit]
+  def accept(p: PriceResponse): Task[Unit]
 }
 
 case class Tickers(tickers: Set[String])
@@ -24,7 +23,7 @@ object TwelveDataWebsocketClient {
   import net.specula.twelvedata.client.model.EventCodecs._
 
   /** Opens a websocket with Twelvedata API and streams the configured prices */
-  val priceStreamingWebsocketApp: ZIO[Tickers with PriceHandler with ApiQueryRequirements with Client with Scope, Throwable, Unit] = {
+  val priceStreamingWebsocketApp: ZIO[Tickers with PriceHandler with TwelveDataConfig with Client with Scope, Throwable, Unit] = {
     (for {
       p <- zio.Promise.make[Nothing, Throwable]
       config <- ZIO.service[TwelveDataConfig]
@@ -33,7 +32,7 @@ object TwelveDataWebsocketClient {
       url = s"wss://ws.twelvedata.com/v1/quotes/price?apikey=${config.apiKey}"
       q <- Queue.unbounded[Event]
       _ <- ZStream.fromQueue(q).foreach(e =>
-        Price.fromEvent(e) match
+        PriceResponse.fromEvent(e) match
           case Some(p) =>
             ZIO.attempt(println(s"Received event $e"))
             ph.accept(p)

@@ -5,5 +5,5 @@ import zio.http.Client
 
 object Layers {
   val defaultLayers =
-    Client.default ++ ZLayer.fromZIO(TwelveDataConfig.loadConfig)
+    Client.default ++ ZLayer.fromZIO(TwelveDataConfig.loadConfig) >>> TwelveDataClient.live
 }
