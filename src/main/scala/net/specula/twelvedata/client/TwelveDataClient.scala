@@ -5,22 +5,7 @@ import net.specula.twelvedata.client.model.{ApiPrice, ApiQuote, TimeSeriesInterv
 import zio.*
 import zio.http.{Body, Client, Method}
 
-object TwelveDataUrls {
-  val baseUrl = "https://api.twelvedata.com"
-
-  def cleanUrl(url: String) = url.replaceAll("\\?apikey.*", "")
-
-  /**
-   * Quote endpoint is an efficient method to retrieve the latest quote of the selected instrument.
-   * [[https://twelvedata.com/docs#quote]]
-   */
-  def quoteUrl(symbols: List[model.Symbol], config: TwelveDataConfig) =
-    baseUrl + s"/quote?symbol=${symbols.map(_.name).mkString(",")}&apikey=${config.apiKey}"
-
-  def findPriceUrl(symbols: Seq[model.Symbol], config: TwelveDataConfig) =
-     baseUrl + s"/price?symbol=${symbols.map(_.name).mkString(",")}&apikey=${config.apiKey}"
-}
-
+/** Client for Twelvedata HTTP API */
 class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
   import net.specula.twelvedata.client.model.json.JsonCodecs.*
@@ -174,7 +159,6 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 }
 
 object TwelveDataClient:
-
   lazy val live: ZLayer[Client & TwelveDataConfig, Nothing, TwelveDataClient] =
     ZLayer {
       for {
@@ -183,6 +167,7 @@ object TwelveDataClient:
       } yield TwelveDataClient(metadataRepo, blobStorage)
     }
 
+  // ZIO Service pattern - accessors that make it convenient to interact with the service in the current ZIO Environment.
   def fetchHistoricalData(request: TwelveDataHistoricalDataRequest): ZIO[TwelveDataClient, Throwable, TwelveDataHistoricalDataResponse] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchHistoricalData(request))
 
