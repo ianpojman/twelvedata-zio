@@ -1,6 +1,6 @@
-package net.specula.twelvedata.client
+package net.specula.twelvedata.client.websocket
 
-import net.specula.twelvedata.client.model.{Price, PriceResponse}
+import net.specula.twelvedata.client.model.PriceResponse
 import net.specula.twelvedata.client.util.NetworkConfigurationUtil
 import zio.{Scope, Task, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer}
 
@@ -14,7 +14,7 @@ object TwelveDataWebsocketClientExample extends ZIOAppDefault {
     val tickers = ZLayer.succeed(Tickers("AAPL,INFY,TRP,QQQ,IXIC,EUR/USD,USD/JPY,BTC/USD,ETH/BTC".split(",").toSet))
 //    TwelveDataWebsocketClient.priceStreamingWebsocketApp
 //      .provide(Scope.default, Layers.defaultLayers, pricehandler, tickers)
-???
+    ??? // TODO fixme
   }
 
 }

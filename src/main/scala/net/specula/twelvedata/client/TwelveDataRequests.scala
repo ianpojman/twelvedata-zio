@@ -1,12 +1,12 @@
 package net.specula.twelvedata.client
 
 import net.specula.twelvedata.client.TwelveDataUrls.cleanUrl
-import net.specula.twelvedata.client.model.{ApiPrice, ApiQuote, TwelveDataHistoricalDataRequest, TwelveDataHistoricalDataResponse}
+import net.specula.twelvedata.client.model.{ApiPrice, ApiQuote, TimeSeriesIntervalQuery, TimeSeriesItems, TwelveDataHistoricalDataRequest, TwelveDataHistoricalDataResponse}
 import zio.*
 import zio.http.{Body, Client, Method}
 
 object TwelveDataUrls {
-  val baseUrl = "https://api.twelvedata.com" //quote?apikey=&symbol='
+  val baseUrl = "https://api.twelvedata.com"
 
   def cleanUrl(url: String) = url.replaceAll("\\?apikey.*", "")
 
@@ -14,23 +14,22 @@ object TwelveDataUrls {
    * Quote endpoint is an efficient method to retrieve the latest quote of the selected instrument.
    * [[https://twelvedata.com/docs#quote]]
    */
-  def quoteUrl(symbols: List[Symbol], config: TwelveDataConfig) =
+  def quoteUrl(symbols: List[model.Symbol], config: TwelveDataConfig) =
     baseUrl + s"/quote?symbol=${symbols.map(_.name).mkString(",")}&apikey=${config.apiKey}"
 
-  def findPriceUrl(symbols: Seq[Symbol], config: TwelveDataConfig) =
+  def findPriceUrl(symbols: Seq[model.Symbol], config: TwelveDataConfig) =
      baseUrl + s"/price?symbol=${symbols.map(_.name).mkString(",")}&apikey=${config.apiKey}"
 }
 
-// TODO: spot silver/gold price: https://api.twelvedata.com/exchange_rate?symbol=XAG/USD&apikey=bf7d15e28ce44d62bf20f944901cc398
 class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
-  import JsonCodecs.*
+  import net.specula.twelvedata.client.model.json.JsonCodecs.*
   import zio.json.*
 
   private val requiredClientLayer: ULayer[Client] = ZLayer.succeed(client)
 
   /** Quote has OHLC, volume */
-  def fetchQuote(symbols: List[Symbol]): Task[ApiQuote] = for {
+  def fetchQuote(symbols: List[model.Symbol]): Task[ApiQuote] = for {
     url <- ZIO.attempt(TwelveDataUrls.quoteUrl(symbols, config))
     _ <- zio.Console.printLine(s"Fetching quotes: ${cleanUrl(url)}")
     res <- Client.request(url).provide(requiredClientLayer)
@@ -49,12 +48,10 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    *
    * }}}
    */
-  def fetchPrices(symbols: Seq[Symbol]): ZIO[Any, Throwable, TickerToApiPriceMap] = {
+  def fetchPrices(symbols: Seq[model.Symbol]): ZIO[Any, Throwable, TickerToApiPriceMap] = {
     import net.specula.twelvedata.client.model.ApiCodecs.*
     val url = TwelveDataUrls.findPriceUrl(symbols, config)
     for {
-
-
       _ <- zio.Console.printLine(s"Fetching prices: ${cleanUrl(url)}")
       res <- Client.request(url).provide(requiredClientLayer)
       response <- res.body.asString
@@ -106,7 +103,7 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    *    }, ...
    * }}}
    * */
-  def fetchTimeSeries(interval: TimeSeriesIntervalQuery): Task[Map[Symbol, TimeSeriesItems]] = {
+  def fetchTimeSeries(interval: TimeSeriesIntervalQuery): Task[Map[model.Symbol, TimeSeriesItems]] = {
 
     val symbols = interval.symbols
     val url = TwelveDataUrls.baseUrl + s"/time_series?interval=${interval.timeSeriesInterval.apiName}" +
@@ -125,7 +122,7 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
       // convert the twelvedata api either to a ZIO function
       res2 <- ZIO.fromEither(remoteResponseParsed)
         .mapError(new RuntimeException(_))
-        .map(_.map { case (k, v) => Symbol.fromString(k) -> v }.toMap)
+        .map(_.map { case (k, v) => model.Symbol.fromString(k) -> v }.toMap)
     } yield {
       res2
     }
@@ -161,7 +158,7 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    * @param symbols tickers we asked to look up in the request (assumes the response has the same tickers?)
    * @return
    */
-  private def parseResponse(response: String, symbols: List[Symbol]): Either[String, TickerToTimeSeriesItemMap] = {
+  private def parseResponse(response: String, symbols: List[model.Symbol]): Either[String, TickerToTimeSeriesItemMap] = {
     symbols match {
       case List(singleSymbol) =>
         response.fromJson[TimeSeriesItems]
@@ -189,10 +186,10 @@ object TwelveDataClient:
   def fetchHistoricalData(request: TwelveDataHistoricalDataRequest): ZIO[TwelveDataClient, Throwable, TwelveDataHistoricalDataResponse] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchHistoricalData(request))
 
-  def fetchTimeSeries(intervalQuery: TimeSeriesIntervalQuery): ZIO[TwelveDataClient, Throwable, Map[Symbol, TimeSeriesItems]] =
+  def fetchTimeSeries(intervalQuery: TimeSeriesIntervalQuery): ZIO[TwelveDataClient, Throwable, Map[model.Symbol, TimeSeriesItems]] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchTimeSeries(intervalQuery))
 
   def fetchPrices(tickers: String*): ZIO[TwelveDataClient, Throwable, TickerToApiPriceMap] =
-    ZIO.serviceWithZIO[TwelveDataClient](_.fetchPrices(tickers.map(Symbol.fromString)))
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchPrices(tickers.map(model.Symbol.fromString)))
 
 end TwelveDataClient

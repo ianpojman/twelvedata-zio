@@ -1,7 +1,6 @@
 package net.specula.twelvedata.service
 
-import net.specula.twelvedata.client.TimeSeriesInterval
-import net.specula.twelvedata.client.model.TwelveDataHistoricalDataRequest
+import net.specula.twelvedata.client.model.{TimeSeriesInterval, TwelveDataHistoricalDataRequest}
 
 import java.time.Instant
 

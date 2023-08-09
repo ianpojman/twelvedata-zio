@@ -1,7 +1,7 @@
 package net.specula.twelvedata.client
 
 import net.specula.twelvedata.client.model.ComplexDataRequestMethod.TimeSeriesMethod
-import net.specula.twelvedata.client.model.TwelveDataHistoricalDataRequest
+import net.specula.twelvedata.client.model.{TimeSeriesInterval, TimeSeriesIntervalQuery, TwelveDataHistoricalDataRequest}
 import zio.*
 import zio.http.Client
 import zio.test.*
@@ -26,9 +26,9 @@ object IntegrationTests extends ZIOSpecDefault {
     },
     test("fetch time series") {
       for {
-        response <- TwelveDataClient.fetchTimeSeries(TimeSeriesIntervalQuery( List("AAPL", "MSFT").map(Symbol.fromString), TimeSeriesInterval.OneMinute))
+        response <- TwelveDataClient.fetchTimeSeries(TimeSeriesIntervalQuery( List("AAPL", "MSFT").map(model.Symbol.fromString), TimeSeriesInterval.OneMinute))
           .provide(Layers.defaultLayers)
-      } yield assertTrue(response.keySet == Set(Symbol.fromString("AAPL"), Symbol.fromString("MSFT")))
+      } yield assertTrue(response.keySet == Set(model.Symbol.fromString("AAPL"), model.Symbol.fromString("MSFT")))
     },
 //    test("fetch historical data w/ ema indicator") {
 //      val request = TwelveDataHistoricalDataRequest(symbols = List("AAPL"),

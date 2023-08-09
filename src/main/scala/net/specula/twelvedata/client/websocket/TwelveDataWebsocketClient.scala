@@ -1,12 +1,14 @@
-package net.specula.twelvedata.client
+package net.specula.twelvedata.client.websocket
 
+import net.specula.twelvedata.client.TwelveDataConfig
 import net.specula.twelvedata.client.model.{Event, Price, PriceResponse}
 import net.specula.twelvedata.client.util.NetworkConfigurationUtil
+import net.specula.twelvedata.client.websocket.{PriceHandler, Tickers}
 import zio.*
-import zio.http.ChannelEvent.{ChannelRead, ChannelRegistered, ExceptionCaught, UserEvent, UserEventTriggered, exceptionCaught}
-import zio.http.socket.{SocketApp, WebSocketChannelEvent, WebSocketFrame}
 import zio.http.*
+import zio.http.ChannelEvent.*
 import zio.http.ChannelEvent.UserEvent.HandshakeComplete
+import zio.http.socket.{SocketApp, WebSocketChannelEvent, WebSocketFrame}
 import zio.stream.ZStream
 
 import scala.util.Right
@@ -19,8 +21,8 @@ case class Tickers(tickers: Set[String])
 
 object TwelveDataWebsocketClient {
 
-  import zio.json._
-  import net.specula.twelvedata.client.model.EventCodecs._
+  import net.specula.twelvedata.client.model.EventCodecs.*
+  import zio.json.*
 
   /** Opens a websocket with Twelvedata API and streams the configured prices */
   val priceStreamingWebsocketApp: ZIO[Tickers with PriceHandler with TwelveDataConfig with Client with Scope, Throwable, Unit] = {

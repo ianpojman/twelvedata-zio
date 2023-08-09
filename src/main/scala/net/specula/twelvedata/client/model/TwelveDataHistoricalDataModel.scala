@@ -1,7 +1,6 @@
 package net.specula.twelvedata.client.model
 
 import com.sun.tools.javac.code.Symbol.MethodSymbol
-import net.specula.twelvedata.client.TimeSeriesInterval
 
 import java.time.Instant
 

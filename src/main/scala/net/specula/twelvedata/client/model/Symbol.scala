@@ -1,4 +1,4 @@
-package net.specula.twelvedata.client
+package net.specula.twelvedata.client.model
 
 import net.specula.twelvedata.client
 import zio.ZLayer
@@ -12,5 +12,5 @@ object Symbol:
     )
 
   /** Convenience constructor to create ZLayer for ZIO dependency injection */
-  def asLayer(tickers: List[client.Symbol]) = ZLayer.succeed(tickers)
+  def asLayer(tickers: List[Symbol]) = ZLayer.succeed(tickers)
 end Symbol

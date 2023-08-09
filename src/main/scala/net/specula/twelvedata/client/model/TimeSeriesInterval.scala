@@ -1,6 +1,6 @@
-package net.specula.twelvedata.client
+package net.specula.twelvedata.client.model
 
-
+import net.specula.twelvedata.client.model.{Symbol, TimeSeriesInterval}
 import zio.*
 
 import java.time.{Instant, ZoneOffset}
@@ -12,7 +12,7 @@ case class TimeSeriesIntervalQuery(symbols: List[Symbol],
 
 sealed abstract class TimeSeriesInterval(val apiName: String)
 object TimeSeriesInterval {
-  def fromStrings(s: String*): List[Symbol] = s.map(Symbol.fromString(_)).toList
+  def fromStrings(s: String*): List[Symbol] = s.map(Symbol.fromString).toList
   
   case object OneMinute extends TimeSeriesInterval("1min")
   case object FiveMinutes extends TimeSeriesInterval("5min")
@@ -26,18 +26,3 @@ object TimeSeriesInterval {
   case object OneWeek extends TimeSeriesInterval("1week")
   case object OneMonth extends TimeSeriesInterval("1month")
 }
-
-class ConcreteTimeframe(name: String, duration: Duration)
-
-//
-//  def ytd: Duration = {
-//    import java.time.LocalDate
-//
-//
-//    val startOfYear = Instant.now().atZone(ZoneOffset.UTC).toLocalDate
-//      .withDayOfYear(1).atStartOfDay()
-//      .atZone(ZoneOffset.UTC).toInstant
-//
-//    Duration.fromInterval(startOfYear, Instant.now)
-//  }
-//}
