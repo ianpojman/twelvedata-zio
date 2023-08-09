@@ -59,7 +59,7 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
   /** Get historical prices starting at the most recent price,in the given time intervals. Ordered by descending time
    * {{{
-   *  $ curl 'https://api.twelvedata.com/time_series?symbol=AAPL,MSFT&interval=1year&outputsize=90&apikey=bf7d15e28ce44d62bf20f944901cc398'
+   *  $ curl 'https://api.twelvedata.com/time_series?symbol=AAPL,MSFT&interval=1year&outputsize=90&apikey=XXXX'
    * }}}
    *
    * response:
