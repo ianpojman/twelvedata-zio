@@ -1,8 +1,8 @@
 package net.specula.twelvedata
 
-import net.specula.twelvedata.client.model.{ApiPrice, DataElement, Indicator, Meta, TwelveDataHistoricalDataRequest, TwelveDataHistoricalDataResponse, Value}
+import net.specula.twelvedata.client.model.{ApiPrice, DataElement, Indicator, ResponseMetadata, TwelveDataHistoricalDataRequest, TwelveDataHistoricalDataResponse, Value}
 import zio.http.Client
-import zio.json.{DeriveJsonDecoder, DeriveJsonEncoder, JsonDecoder, JsonEncoder}
+import zio.json.{DeriveJsonDecoder, DeriveJsonEncoder, JsonCodec, JsonDecoder, JsonEncoder}
 
 package object client {
 
@@ -59,8 +59,14 @@ package object client {
     implicit val dataElementDecoder: JsonDecoder[DataElement] = DeriveJsonDecoder.gen
     implicit val valueDecoder: JsonDecoder[Value] = DeriveJsonDecoder.gen
     implicit val indicatorDecoder: JsonDecoder[Indicator] = DeriveJsonDecoder.gen
-    implicit val metaDecoder: JsonDecoder[Meta] = DeriveJsonDecoder.gen
+    implicit val metaDecoder: JsonDecoder[ResponseMetadata] = DeriveJsonDecoder.gen
     implicit val TwelveDataResponseDecoder: JsonDecoder[TwelveDataHistoricalDataResponse] = DeriveJsonDecoder.gen
+
+    // ensure null gets translated to None, cf https://stackoverflow.com/a/72339993/1342121
+//    implicit val handleNullDataFieldCustomDecoder: JsonDecoder[Option[List[DataElement]]] =     JsonDecoder[Option[List[DataElement]]].map {
+//      x => if (x==null) None else x
+//    }
+
   }
   type TickerToTimeSeriesItemMap = Map[String, TimeSeriesItems]
 }

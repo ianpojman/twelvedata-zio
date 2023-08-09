@@ -5,8 +5,6 @@ import net.specula.twelvedata.client.model.{ApiPrice, ApiQuote, TwelveDataHistor
 import zio.*
 import zio.http.{Body, Client, Method}
 
-import java.time.{Instant, LocalDate, Period, ZoneOffset}
-
 object TwelveDataUrls {
   val baseUrl = "https://api.twelvedata.com" //quote?apikey=&symbol='
 
@@ -25,8 +23,8 @@ object TwelveDataUrls {
 
 // TODO: spot silver/gold price: https://api.twelvedata.com/exchange_rate?symbol=XAG/USD&apikey=bf7d15e28ce44d62bf20f944901cc398
 class TwelveDataClient(client: Client, config: TwelveDataConfig) {
-  import JsonCodecs.*
 
+  import JsonCodecs.*
   import zio.json.*
 
   private val requiredClientLayer: ULayer[Client] = ZLayer.succeed(client)
@@ -109,7 +107,6 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    * }}}
    * */
   def fetchTimeSeries(interval: TimeSeriesIntervalQuery): Task[Map[Symbol, TimeSeriesItems]] = {
-    import JsonCodecs.*
 
     val symbols = interval.symbols
     val url = TwelveDataUrls.baseUrl + s"/time_series?interval=${interval.timeSeriesInterval.apiName}" +
@@ -135,32 +132,11 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
   }
 
-  def toQuotedJsonStringsCommaDelimited(strings: List[String]): String =
-    strings.mkString("\"", "\",\"", "\"")
-
   def fetchHistoricalData(req: TwelveDataHistoricalDataRequest): Task[TwelveDataHistoricalDataResponse] = {
-    import zio.json.*
-    import JsonCodecs.*
     val url = TwelveDataUrls.baseUrl + s"/complex_data?apikey=${config.apiKey}"
 
     for {
-      _ <- zio.Console.printLine(s"URL: $url")
-//      requestString =
-//        s"""
-//           |{
-//           | "symbols": [${toQuotedJsonStringsCommaDelimited(req.symbols)}],
-//         | "intervals": ["5min", "1day"],
-//         | "outputsize": 25,
-//         | "methods": [
-//         |  "time_series",
-//         |   {
-//         |     "name": "ema",
-//         |     "time_period": 12
-//         |   }
-//         |  ]
-//         |}
-//         |""".stripMargin
-      _ <- Console.printLine("Request json = \n" + req.toJsonPretty)
+//      _ <- zio.Console.printLine(s"URL: $url")
       res <- Client.request(url, method = Method.POST, content = Body.fromString(req.toJson))
         .provide(requiredClientLayer)
       responseString <-
@@ -172,6 +148,8 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
       remoteResponseParsed <-
         ZIO.fromEither(responseString.fromJson[TwelveDataHistoricalDataResponse])
         .mapError(new RuntimeException(_))
+        .tapError(_ => Console.printLine(s"ERROR: Request JSON body was: ${req.toJson}"))
+        .tapError(_ => Console.printLine(s"ERROR: Response JSON body was: ${responseString.replaceAll("\n", "")}"))
     } yield remoteResponseParsed
   }
 
@@ -218,15 +196,3 @@ object TwelveDataClient:
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchPrices(tickers.map(Symbol.fromString)))
 
 end TwelveDataClient
-
-/*
-object DocRepoImpl {
-  val layer: ZLayer[BlobStorage with MetadataRepo, Nothing, DocRepo] =
-    ZLayer {
-      for {
-        metadataRepo <- ZIO.service[MetadataRepo]
-        blobStorage  <- ZIO.service[BlobStorage]
-      } yield DocRepoImpl(metadataRepo, blobStorage)
-    }
-}
- */
