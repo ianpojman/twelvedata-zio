@@ -1,6 +1,7 @@
 package net.specula.twelvedata.client.model
 
-import java.time.Instant
+import java.time.{Instant, ZonedDateTime}
+import java.time.format.DateTimeFormatter
 
 /*
 The classes in this file represent a 1:1 mapping of the JSON response model from Twelvedata, including fields which match
@@ -127,7 +128,19 @@ case class Value(
                   close: Option[String],
                   volume: Option[String],
                   ema: Option[String]
-                )
+                ) {
+  def instant(timeZone: String): Instant = Value.dateTimeToInstant(this.datetime, timeZone)
+
+}
+
+object Value:
+  def dateTimeToInstant(dateTime: String, timeZone: String): Instant = {
+    val combinedString = s"$dateTime $timeZone"
+    val dateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z")
+    ZonedDateTime.parse(combinedString, dateTimeFormatter).toInstant
+  }
+
+end Value
 
 /** A list of values which are either price bars (timestamped OHLC data) or ema data. */
 case class DataElement(
