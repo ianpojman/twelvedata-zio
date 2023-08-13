@@ -1,7 +1,5 @@
 package net.specula.twelvedata.client.model
 
-import com.sun.tools.javac.code.Symbol.MethodSymbol
-
 import java.time.Instant
 
 /*

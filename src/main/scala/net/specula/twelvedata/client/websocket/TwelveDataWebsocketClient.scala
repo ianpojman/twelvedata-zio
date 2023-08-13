@@ -65,8 +65,6 @@ object TwelveDataWebsocketClient {
                                    tickers: Tickers): Http[Any, Throwable, WebSocketChannelEvent, AnyVal] =
     Http.collectZIO[WebSocketChannelEvent] {
         case ChannelEvent(ch, ChannelRead(WebSocketFrame.Text(t))) =>
-//          println("RAW EVENT: "+ t)
-
           val maybeE = t.fromJson[Event]
           maybeE match {
             case Left(e) => ZIO.logWarning(s"Error receiving event: $e")
