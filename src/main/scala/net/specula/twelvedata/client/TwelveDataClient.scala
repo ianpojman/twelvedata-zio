@@ -1,9 +1,11 @@
 package net.specula.twelvedata.client
 
 import net.specula.twelvedata.client.TwelveDataUrls.cleanUrl
-import net.specula.twelvedata.client.model.{ApiPrice, ApiQuote, TimeSeriesIntervalQuery, TimeSeriesItems, TwelveDataHistoricalDataRequest, TwelveDataHistoricalDataResponse}
+import net.specula.twelvedata.client.model.*
+import net.specula.twelvedata.client.rest.{ComplexDataRequestBody, ComplexMethod}
 import zio.*
-import zio.http.{Body, Client, Method}
+import zio.http.{Body, Client, Method, Status}
+import zio.stream.ZStream
 
 /** Client for Twelvedata HTTP API */
 class TwelveDataClient(client: Client, config: TwelveDataConfig) {
@@ -92,7 +94,7 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
     val symbols = interval.symbols
     val url = TwelveDataUrls.baseUrl + s"/time_series?interval=${interval.timeSeriesInterval.apiName}" +
-      s"&symbol=${symbols.map(_.name).mkString(",")}" +
+      s"&symbol=${symbols.mkString(",")}" +
       s"&end_date=2023-05-12" +
       s"&apikey=${config.apiKey}"
 
@@ -100,25 +102,35 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
       _ <- zio.Console.printLine(s"URL: $url")
       res <- Client.request(url).provide(requiredClientLayer)
       response <- res.body.asString
-
-      remoteResponseParsed: Either[String, TickerToTimeSeriesItemMap] =
-        parseResponse(response, symbols)
+      _ <- {
+        if (!res.status.isSuccess || response.contains("""{"code":4""")) // it seems 200 status will be returned even if the request is invalid, so we check for this specific error code
+          ZIO.fail(new RuntimeException(s"Response: ${response.replaceAll("\n", "")}"))
+        else
+          ZIO.unit
+      }
+      remoteResponseParsed = parseResponse(response, symbols.map(model.Symbol.fromString))
 
       // convert the twelvedata api either to a ZIO function
-      res2 <- ZIO.fromEither(remoteResponseParsed)
-        .mapError(new RuntimeException(_))
-        .map(_.map { case (k, v) => model.Symbol.fromString(k) -> v }.toMap)
+      res2
+        <- ZIO.fromEither(remoteResponseParsed)
+          .mapError(new RuntimeException(_))
+          .map(_.map { case (k, v) => model.Symbol.fromString(k) -> v }.toMap)
     } yield {
       res2
     }
 
   }
 
+  /** fetch historical data, maximum 5000 records per request, buffers all in memory */
   def fetchHistoricalData(req: TwelveDataHistoricalDataRequest): Task[TwelveDataHistoricalDataResponse] = {
+    import zio.json.*
+    import net.specula.twelvedata.client.model.json.JsonCodecs.*
+
     val url = TwelveDataUrls.baseUrl + s"/complex_data?apikey=${config.apiKey}"
 
+    //    val requestBody = ComplexDataRequestBody(req.symbols, req.intervals, methods = req.methods)
     for {
-//      _ <- zio.Console.printLine(s"URL: $url")
+      _ <- zio.Console.printLine(s"URL: $url")
       res <- Client.request(url, method = Method.POST, content = Body.fromString(req.toJson))
         .provide(requiredClientLayer)
       responseString <-
@@ -129,18 +141,44 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
       remoteResponseParsed <-
         ZIO.fromEither(responseString.fromJson[TwelveDataHistoricalDataResponse])
-        .mapError(new RuntimeException(_))
-        .tapError(_ => Console.printLine(s"ERROR: Request JSON body was: ${req.toJson}"))
-        .tapError(_ => Console.printLine(s"ERROR: Response JSON body was: ${responseString.replaceAll("\n", "")}"))
+          .mapError(new RuntimeException(_))
+          .tapError(_ => Console.printLine(s"ERROR: Request JSON body was: ${req.toJson}"))
+          .tapError(_ => Console.printLine(s"ERROR: Response JSON body was: ${responseString.replaceAll("\n", "")}"))
     } yield remoteResponseParsed
   }
+
+  //  /** stream historical data, maximum 5000 records per request */
+  //  def streamHistoricalData(req: TwelveDataHistoricalDataRequest): Task[TwelveDataHistoricalDataResponse] = {
+  //    val url = TwelveDataUrls.baseUrl + s"/complex_data?apikey=${config.apiKey}"
+  //
+  //    for {
+  ////      _ <- zio.Console.printLine(s"URL: $url")
+  //      res <-
+  //        Client.request(url, method = Method.POST, content = Body.fromString(req.toJson))
+  //          .provide(requiredClientLayer)
+  //
+  //      response =
+  //        if (res.status.isSuccess)
+  //          res.body.asStream
+  //        else
+  //          ZStream.fail(new RuntimeException(s"Error fetching historical data: ${res.status} ${res.body.asString}"))
+  //
+  //      _ <- response.map(x => x)
+  ////      remoteResponseParsed <-
+  ////        ZIO.fromEither(responseString.fromJson[TwelveDataHistoricalDataResponse])
+  ////        .mapError(new RuntimeException(_))
+  ////        .tapError(_ => Console.printLine(s"ERROR: Request JSON body was: ${req.toJson}"))
+  ////        .tapError(_ => Console.printLine(s"ERROR: Response JSON body was: ${responseString.replaceAll("\n", "")}"))
+  //    } yield remoteResponseParsed
+  //  }
 
   /**
    * as in other endpoints, the response body format varies depending on whether multiple tickers are being queried.
    * when multiple `Symbol`s are provided, the response body is a `Map` of `Symbol`s to `TimeSeriesItems`.
    * when a single `Symbol` is provided, the response body is just the single `TimeSeriesItems`.
+   *
    * @param response Response body from the API
-   * @param symbols tickers we asked to look up in the request (assumes the response has the same tickers?)
+   * @param symbols  tickers we asked to look up in the request (assumes the response has the same tickers?)
    * @return
    */
   private def parseResponse(response: String, symbols: List[model.Symbol]): Either[String, TickerToTimeSeriesItemMap] = {

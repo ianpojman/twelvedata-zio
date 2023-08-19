@@ -6,23 +6,28 @@ import zio.*
 import java.time.{Instant, ZoneOffset}
 
 /** Query for time series data, from the current time backwards, at the interval specified */
-case class TimeSeriesIntervalQuery(symbols: List[Symbol],
-                                   timeSeriesInterval: TimeSeriesInterval)
+case class TimeSeriesIntervalQuery(symbols: List[String],
+                                   timeSeriesInterval: TimeSeriesInterval,
+                                   startDate: Instant,
+                                   endDate: Instant,
+                                   outputCount: Int=30)
 
 
-sealed abstract class TimeSeriesInterval(val apiName: String)
-object TimeSeriesInterval {
+enum TimeSeriesInterval(val apiName: String):
+  case OneMinute extends TimeSeriesInterval("1min")
+  case FiveMinutes extends TimeSeriesInterval("5min")
+  case FifteenMinutes extends TimeSeriesInterval("15min")
+  case ThirtyMinutes extends TimeSeriesInterval("30min")
+  case FortyFiveMinutes extends TimeSeriesInterval("45min")
+  case OneHour extends TimeSeriesInterval("1h")
+  case TwoHours extends TimeSeriesInterval("2h")
+  case FourHours extends TimeSeriesInterval("4h")
+  case OneDay extends TimeSeriesInterval("1day")
+  case OneWeek extends TimeSeriesInterval("1week")
+  case OneMonth extends TimeSeriesInterval("1month")
+
+object TimeSeriesInterval:
   def fromStrings(s: String*): List[Symbol] = s.map(Symbol.fromString).toList
-  
-  case object OneMinute extends TimeSeriesInterval("1min")
-  case object FiveMinutes extends TimeSeriesInterval("5min")
-  case object FifteenMinutes extends TimeSeriesInterval("15min")
-  case object ThirtyMinutes extends TimeSeriesInterval("30min")
-  case object FortyFiveMinutes extends TimeSeriesInterval("45min")
-  case object OneHour extends TimeSeriesInterval("1h")
-  case object TwoHours extends TimeSeriesInterval("2h")
-  case object FourHours extends TimeSeriesInterval("4h")
-  case object OneDay extends TimeSeriesInterval("1day")
-  case object OneWeek extends TimeSeriesInterval("1week")
-  case object OneMonth extends TimeSeriesInterval("1month")
-}
+
+  def fromString(str: String): Option[TimeSeriesInterval] =
+    TimeSeriesInterval.values.find(_.apiName == str)
