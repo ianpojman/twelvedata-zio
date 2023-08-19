@@ -18,8 +18,9 @@ case class ComplexMethod(commandName: String,
 
 /** wrapper class for deserialiation purposes */
 case class ComplexMethodList(list: List[ComplexMethod])
+
 object ComplexMethodList {
-  def fromComplexMethods(c: ComplexMethod*) = ComplexMethodList(List(c:_*))
+  def fromComplexMethods(c: ComplexMethod*): ComplexMethodList = ComplexMethodList(List(c:_*))
   /**
    * * In the json API (complex data request body), 'methods' is a special array that takes in either a string or an object, and it looks like this:
    * {{{
@@ -80,10 +81,8 @@ object ComplexMethodList {
 }
 
 object ComplexMethod {
-  def timeseries(
-                 startDate: LocalDate,
-                 endDate: LocalDate): ComplexMethod =
-    ComplexMethod("time_series", Map("start_date" -> startDate.toString, "end_date" -> endDate.toString))
+  def timeseries(): ComplexMethod =
+    ComplexMethod("time_series", Map.empty) // Map("start_date" -> startDate.toString, "end_date" -> endDate.toString))
 
 }
 

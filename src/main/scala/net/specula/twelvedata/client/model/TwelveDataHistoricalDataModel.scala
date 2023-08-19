@@ -2,11 +2,11 @@ package net.specula.twelvedata.client.model
 
 import net.specula.twelvedata.client.rest.{ComplexMethod, ComplexMethodList}
 
-import java.time.{Instant, ZonedDateTime}
+import java.time.{Instant, LocalDate, ZonedDateTime}
 import java.time.format.DateTimeFormatter
 
 /*
-The classes in this file represent a 1:1 mapping of the JSON response model from Twelvedata, including fields which match
+WARNING: The classes in this file represent a 1:1 mapping of the JSON response model from Twelvedata, including fields which match
  the field names of the JSON. JSON codecs are generated from these classes, so the structure and names cannot be changed,
   or the response won't be parsed correctly.
  */
@@ -62,78 +62,64 @@ The classes in this file represent a 1:1 mapping of the JSON response model from
  * @param outputsize Number of results to return. Default is 30
  * */
 case class TwelveDataHistoricalDataRequest(symbols: List[String],
-                                           intervals: List[String],
+                                           intervals: List[TimeSeriesInterval],
                                            methods: ComplexMethodList,
-                                           outputsize: Int, // default on server side is 30
+                                           outputsize: Int = 30, // default on server side is 30
+                                           start_date: Option[LocalDate] = None,
+                                           end_date: Option[LocalDate] = None,
                                           )
-
-
-//// can be either a json object ("ema" -> 10), or a string like "time_series"
-//sealed trait ComplexDataRequestMethod {
-//  def apiName: String
-//  def asMap: Map[String, Int] = Map(apiName -> 0) // todo support objects such as ema->10
-//}
-//object ComplexDataRequestMethod {
-//  abstract class NamedComplexDataRequestMethod(override val apiName: String) extends ComplexDataRequestMethod
-//  case object TimeSeriesMethod extends NamedComplexDataRequestMethod("time_series")
-//  case object QuoteMethod extends NamedComplexDataRequestMethod("quote")
-//  case object PriceMethod extends NamedComplexDataRequestMethod("price")
-//  case class OtherMethod(otherName: String) extends NamedComplexDataRequestMethod(otherName) // for something not yet added above
-//}
 
 object TwelveDataHistoricalDataRequest:
 end TwelveDataHistoricalDataRequest
-
-
-// response model
 
 /** Indicator data which is optional and may be included as part of the complex_data endpoint response */
 case class Indicator(name: String, series_type: String, time_period: Int)
 
 /** Contains metadata about the query, including data about the exchange, the interval used, and any relevant indicator data */
-case class ResponseMetadata(
-                             symbol: String,
-                             interval: String,
-                             currency: String,
-                             exchange_timezone: String,
-                             exchange: String,
-                             mic_code: String,
-                             `type`: String,
-                             indicator: Option[Indicator] // this is optional because not all elements have this field
-                           )
+case class ResponseElementMetadata(symbol: String,
+                                   interval: String,
+                                   currency: String,
+                                   exchange_timezone: String,
+                                   exchange: String,
+                                   mic_code: String,
+                                   `type`: String,
+                                   indicator: Option[Indicator] // this is optional because not all elements have this field
+                                  )
 
 /** Represents a price bar or an ema value as returned in Twelvedata's JSON response model */
-case class Value(
-                  datetime: String,
-                  open: Option[String], // these are optional because not all elements have these fields
-                  high: Option[String],
-                  low: Option[String],
-                  close: Option[String],
-                  volume: Option[String],
-                  ema: Option[String]
-                ) {
-  def instant(timeZone: String): Instant = Value.dateTimeToInstant(this.datetime, timeZone)
+case class ResponseElementValues(datetime: String,
+                                 open: Option[String], // these are optional because not all elements have these fields
+                                 high: Option[String],
+                                 low: Option[String],
+                                 close: Option[String],
+                                 volume: Option[String],
+                                 ema: Option[String]
+                                ) {
+  def instant(timeZone: String): Instant = ResponseElementValues.dateTimeToInstant(this.datetime, timeZone)
 
 }
 
-object Value:
+object ResponseElementValues:
   def dateTimeToInstant(dateTime: String, timeZone: String): Instant = {
     val combinedString = s"$dateTime $timeZone"
     val dateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z")
     ZonedDateTime.parse(combinedString, dateTimeFormatter).toInstant
   }
 
-end Value
+end ResponseElementValues
 
-/** A list of values which are either price bars (timestamped OHLC data) or ema data. */
-case class DataElement(
-                        meta: ResponseMetadata,
-                        values: List[Value],
-                        status: String
-                      )
+/** A list of values which are either price bars (timestamped OHLC data) or ema data.
+ * NOTE: A [[zio.json.JsonDecoder]] is generated based on this class, so the structure and names cannot be changed, or the response won't be parsed correctly.
+ */
+case class TwelveDataHistoricalDataResponseElement(meta: ResponseElementMetadata,
+                                                   values: List[ResponseElementValues],
+                                                   status: String)
 
-case class TwelveDataHistoricalDataResponse(
-                                             data: Option[List[DataElement]], // server will return null if no data matches, hence this is Option
-                                             status: String) {
-  def dataList: List[DataElement] = data.getOrElse(Nil)
+/** In the Twelvedata API, each "method" generates a different response, which we call are calling [[TwelveDataHistoricalDataResponseElement]] here.
+ * NOTE: A [[zio.json.JsonDecoder]] is generated based on this class, so the structure and names cannot be changed, or the response won't be parsed correctly.
+ *
+ * @param data May not always be returned, which is why its optional. */
+case class TwelveDataHistoricalDataResponse(data: Option[List[TwelveDataHistoricalDataResponseElement]],
+                                            status: String) {
+  def dataList: List[TwelveDataHistoricalDataResponseElement] = data.getOrElse(Nil)
 }

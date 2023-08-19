@@ -1,14 +1,14 @@
 About 
 ---
 
-This is a Scala client for Twelvedata APIs using ZIO. 
+This is a ZIO client for Twelvedata APIs built using zio-http, zio-json, etc.
 
-See https://twelvedata.com to sign up and get an API key
-
-Usage
+Configuration
 ---
+To use this library, you need a personal Twelvedata API key which you can get from https://twelvedata.com
 
-Add your Twelvedata API key in ~/.twelvedata.conf, e.g.:
+Add your Twelvedata API key in ~/.twelvedata.conf in the format `apiKey = "MY_API_KEY"`, e.g.:
+
 ```
-apiKey = "ABCDEFG"
+echo 'apiKey = "ABCDEFG"' > ~/.twelvedata.conf
 ```

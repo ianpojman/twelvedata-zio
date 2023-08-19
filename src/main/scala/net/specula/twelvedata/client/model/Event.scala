@@ -1,6 +1,6 @@
 package net.specula.twelvedata.client.model
 
-import net.specula.twelvedata.client.model.TimeSeriesItems
+import net.specula.twelvedata.client.model.PriceBarSeries
 import zio.json.{DeriveJsonDecoder, JsonDecoder, SnakeCase, jsonMemberNames}
 
 /**  event from websocket stream

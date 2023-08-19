@@ -90,7 +90,7 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    *    }, ...
    * }}}
    * */
-  def fetchTimeSeries(interval: TimeSeriesIntervalQuery): Task[Map[model.Symbol, TimeSeriesItems]] = {
+  def fetchTimeSeries(interval: TimeSeriesIntervalQuery): Task[Map[model.Symbol, PriceBarSeries]] = {
 
     val symbols = interval.symbols
     val url = TwelveDataUrls.baseUrl + s"/time_series?interval=${interval.timeSeriesInterval.apiName}" +
@@ -128,7 +128,6 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
     val url = TwelveDataUrls.baseUrl + s"/complex_data?apikey=${config.apiKey}"
 
-    //    val requestBody = ComplexDataRequestBody(req.symbols, req.intervals, methods = req.methods)
     for {
       _ <- zio.Console.printLine(s"URL: $url")
       res <- Client.request(url, method = Method.POST, content = Body.fromString(req.toJson))
@@ -184,7 +183,7 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   private def parseResponse(response: String, symbols: List[model.Symbol]): Either[String, TickerToTimeSeriesItemMap] = {
     symbols match {
       case List(singleSymbol) =>
-        response.fromJson[TimeSeriesItems]
+        response.fromJson[PriceBarSeries]
           .map(timeSeriesItem => Map(singleSymbol.name -> timeSeriesItem))
       case Nil =>
         sys.error("Symbols required")
@@ -197,19 +196,24 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 }
 
 object TwelveDataClient:
+
+  /** A ZLayer that creates a TwelveDataClient from its requirements in the Environment */
   lazy val live: ZLayer[Client & TwelveDataConfig, Nothing, TwelveDataClient] =
     ZLayer {
       for {
-        metadataRepo <- ZIO.service[Client]
-        blobStorage <- ZIO.service[TwelveDataConfig]
-      } yield TwelveDataClient(metadataRepo, blobStorage)
+        requiredClient <- ZIO.service[Client]
+        requiredConfig <- ZIO.service[TwelveDataConfig]
+      } yield TwelveDataClient(requiredClient, requiredConfig)
     }
 
-  // ZIO Service pattern - accessors that make it convenient to interact with the service in the current ZIO Environment.
+  // ZIO Service pattern - templates for invoking methods of the TwelveDataClient instance from the ZIO environment - https://zio.dev/reference/service-pattern/
+  def fetchQuote(symbols: List[model.Symbol]): ZIO[TwelveDataClient, Throwable, ApiQuote] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchQuote(symbols))
+
   def fetchHistoricalData(request: TwelveDataHistoricalDataRequest): ZIO[TwelveDataClient, Throwable, TwelveDataHistoricalDataResponse] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchHistoricalData(request))
 
-  def fetchTimeSeries(intervalQuery: TimeSeriesIntervalQuery): ZIO[TwelveDataClient, Throwable, Map[model.Symbol, TimeSeriesItems]] =
+  def fetchTimeSeries(intervalQuery: TimeSeriesIntervalQuery): ZIO[TwelveDataClient, Throwable, Map[model.Symbol, PriceBarSeries]] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchTimeSeries(intervalQuery))
 
   def fetchPrices(tickers: String*): ZIO[TwelveDataClient, Throwable, TickerToApiPriceMap] =
