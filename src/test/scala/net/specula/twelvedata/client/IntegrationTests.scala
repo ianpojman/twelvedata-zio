@@ -3,7 +3,6 @@ package net.specula.twelvedata.client
 import net.specula.twelvedata.client.model.{TimeSeriesInterval, TimeSeriesIntervalQuery, TwelveDataHistoricalDataRequest}
 import net.specula.twelvedata.client.rest.{ComplexMethod, ComplexMethodList}
 import zio.*
-import zio.http.Client
 import zio.test.*
 
 import java.time.{Instant, LocalDate}

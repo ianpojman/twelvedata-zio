@@ -67,6 +67,7 @@ case class TwelveDataHistoricalDataRequest(symbols: List[String],
                                            outputsize: Int = 30, // default on server side is 30
                                            start_date: Option[LocalDate] = None,
                                            end_date: Option[LocalDate] = None,
+                                           timezone: Option[String] = None, // e.g. "America/New_York"
                                           )
 
 object TwelveDataHistoricalDataRequest:
