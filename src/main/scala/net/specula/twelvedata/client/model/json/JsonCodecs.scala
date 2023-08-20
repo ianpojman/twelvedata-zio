@@ -19,9 +19,9 @@ object JsonCodecs {
     }
   }
   implicit val historicalDataRequestEncoder: JsonEncoder[TwelveDataHistoricalDataRequest] = DeriveJsonEncoder.gen
-  implicit val dataElementDecoder: JsonDecoder[TwelveDataHistoricalDataResponseElement] = DeriveJsonDecoder.gen
+  implicit val dataElementDecoder: JsonDecoder[TwelveDataHistoricalDataResponse] = DeriveJsonDecoder.gen
   implicit val valueDecoder: JsonDecoder[ResponseElementValues] = DeriveJsonDecoder.gen
   implicit val indicatorDecoder: JsonDecoder[Indicator] = DeriveJsonDecoder.gen
   implicit val metaDecoder: JsonDecoder[ResponseElementMetadata] = DeriveJsonDecoder.gen
-  implicit val TwelveDataResponseDecoder: JsonDecoder[TwelveDataHistoricalDataResponse] = DeriveJsonDecoder.gen
+  implicit val TwelveDataResponseDecoder: JsonDecoder[TwelveDataHistoricalDataBatchResponse] = DeriveJsonDecoder.gen
 }

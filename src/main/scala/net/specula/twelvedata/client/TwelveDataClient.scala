@@ -122,7 +122,7 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   }
 
   /** fetch historical data, maximum 5000 records per request, buffers all in memory */
-  def fetchHistoricalData(req: TwelveDataHistoricalDataRequest): Task[TwelveDataHistoricalDataResponse] = {
+  def fetchHistoricalData(req: TwelveDataHistoricalDataRequest): Task[TwelveDataHistoricalDataBatchResponse] = {
     import zio.json.*
     import net.specula.twelvedata.client.model.json.JsonCodecs.*
 
@@ -139,7 +139,7 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
           ZIO.fail(new RuntimeException(s"Error fetching historical data: ${res.status} ${res.body.asString}"))
 
       remoteResponseParsed <-
-        ZIO.fromEither(responseString.fromJson[TwelveDataHistoricalDataResponse])
+        ZIO.fromEither(responseString.fromJson[TwelveDataHistoricalDataBatchResponse])
           .mapError(new RuntimeException(_))
           .tapError(_ => Console.printLine(s"ERROR: Request JSON body was: ${req.toJson}"))
           .tapError(_ => Console.printLine(s"ERROR: Response JSON body was: ${responseString.replaceAll("\n", "")}"))
@@ -210,7 +210,7 @@ object TwelveDataClient:
   def fetchQuote(symbols: List[model.Symbol]): ZIO[TwelveDataClient, Throwable, ApiQuote] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchQuote(symbols))
 
-  def fetchHistoricalData(request: TwelveDataHistoricalDataRequest): ZIO[TwelveDataClient, Throwable, TwelveDataHistoricalDataResponse] =
+  def fetchHistoricalData(request: TwelveDataHistoricalDataRequest): ZIO[TwelveDataClient, Throwable, TwelveDataHistoricalDataBatchResponse] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchHistoricalData(request))
 
   def fetchTimeSeries(intervalQuery: TimeSeriesIntervalQuery): ZIO[TwelveDataClient, Throwable, Map[model.Symbol, PriceBarSeries]] =
