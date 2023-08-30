@@ -9,9 +9,13 @@ object TwelveDataUrls {
    * Quote endpoint is an efficient method to retrieve the latest quote of the selected instrument.
    * [[https://twelvedata.com/docs#quote]]
    */
-  def quoteUrl(symbols: List[model.Symbol], config: TwelveDataConfig) =
-    baseUrl + s"/quote?symbol=${symbols.map(_.name).mkString(",")}&apikey=${config.apiKey}"
+  def quoteUrl(symbols: List[String], config: TwelveDataConfig) =
+    baseUrl + s"/quote?symbol=${symbols.mkString(",")}&apikey=${config.apiKey}"
 
-  def findPriceUrl(symbols: Seq[model.Symbol], config: TwelveDataConfig) =
-    baseUrl + s"/price?symbol=${symbols.map(_.name).mkString(",")}&apikey=${config.apiKey}"
+  def findPriceUrl(symbols: Seq[String], config: TwelveDataConfig) =
+    baseUrl + s"/price?symbol=${symbols.mkString(",")}&apikey=${config.apiKey}"
+
+  def eodUrl(symbol: String, config: TwelveDataConfig): String =
+    s"${baseUrl}/eod?symbol=${symbol}&apikey=${config.apiKey}&start_date"
+
 }

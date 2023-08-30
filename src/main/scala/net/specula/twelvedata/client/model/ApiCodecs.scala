@@ -2,6 +2,8 @@ package net.specula.twelvedata.client.model
 
 import zio.json.{DeriveJsonDecoder, JsonDecoder}
 
+
+
 case class ApiPrice private[client](price: Double)
 
 // for single ticker queries, the price is returned as a single JSON object rather than a map

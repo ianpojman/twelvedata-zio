@@ -1,15 +1,16 @@
 package net.specula.twelvedata.client.model
 
-import net.specula.twelvedata.client.model.{Symbol, TimeSeriesInterval}
+import net.specula.twelvedata.client.model.{ TimeSeriesInterval}
 import zio.*
 
-import java.time.{Instant, ZoneOffset}
+import java.time.{Instant, LocalDate, ZoneOffset}
 
 /** Query for time series data, from the current time backwards, at the interval specified */
 case class TimeSeriesIntervalQuery(symbols: List[String],
                                    timeSeriesInterval: TimeSeriesInterval,
-                                   startDate: Instant,
-                                   endDate: Instant,
+                                   timezone: String,
+                                   startDate: Option[LocalDate] = None,
+                                   endDate:  Option[LocalDate] = None,
                                    outputCount: Int=30)
 
 
@@ -39,9 +40,7 @@ enum TimeSeriesInterval(val apiName: String):
       case OneDay => Duration.fromMillis(24 * 60 * 60 * 1000)
       case OneWeek => Duration.fromMillis(7 * 24 * 60 * 60 * 1000)
       case OneMonth => Duration.fromMillis(30 * 24 * 60 * 60 * 1000)
-      
-object TimeSeriesInterval:
-  def fromStrings(s: String*): List[Symbol] = s.map(Symbol.fromString).toList
 
+object TimeSeriesInterval:
   def fromString(str: String): Option[TimeSeriesInterval] =
     TimeSeriesInterval.values.find(_.apiName == str)

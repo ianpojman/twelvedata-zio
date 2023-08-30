@@ -2,30 +2,50 @@ package net.specula.twelvedata.client
 
 import net.specula.twelvedata.client.TwelveDataUrls.cleanUrl
 import net.specula.twelvedata.client.model.*
-import net.specula.twelvedata.client.rest.{ComplexDataRequestBody, ComplexMethod}
+import net.specula.twelvedata.client.websocket.{TwelveDataWebsocketClient, WebsocketSession}
 import zio.*
-import zio.http.{Body, Client, Method, Status}
-import zio.stream.ZStream
+import zio.http.{Body, Client, Method}
+import zio.stream.{ZSink, ZStream}
 
 /** Client for Twelvedata HTTP API */
-class TwelveDataClient(client: Client, config: TwelveDataConfig) {
+case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
   import net.specula.twelvedata.client.model.json.JsonCodecs.*
   import zio.json.*
 
-  private val requiredClientLayer: ULayer[Client] = ZLayer.succeed(client)
+  private val defaultClientLayer: ULayer[Client] = ZLayer.succeed(client)
+  /**
+   * Fetch EOD data for a given symbol.
+   */
+  def fetchEOD(symbol: String): Task[ApiEOD] = {
+    val url = TwelveDataUrls.eodUrl(symbol, config)
+    for {
+      _ <- zio.Console.printLine(s"Fetching EOD data: ${cleanUrl(url)}")
+      res <- Client.request(url).provide(defaultClientLayer)
+      response <- res.body.asString
+      eod <- ZIO.fromEither(response.fromJson[ApiEOD])
+        .mapError(new RuntimeException(_))
+    } yield eod
+  }
 
   /** Quote has OHLC, volume */
-  def fetchQuote(symbols: List[model.Symbol]): Task[ApiQuote] = for {
+  def fetchQuote(symbols: List[String]): Task[ApiQuote] = for {
     url <- ZIO.attempt(TwelveDataUrls.quoteUrl(symbols, config))
     _ <- zio.Console.printLine(s"Fetching quotes: ${cleanUrl(url)}")
-    res <- Client.request(url).provide(requiredClientLayer)
+    res <- Client.request(url).provide(defaultClientLayer)
     response <- res.body.asString
     e <- ZIO.fromEither(response.fromJson[ApiQuote]).mapError(new RuntimeException(_))
   } yield e
 
+  def newSession(symbols: List[String]): ZIO[Scope & TwelveDataClient, Throwable, WebsocketSession] = {
+    for {
+      q <- Queue.unbounded[Event]
+      s = ZStream.fromQueue(q)
+      sess <- TwelveDataWebsocketClient.streamPrices(symbols, q)
+    } yield sess
+  }
 
-  /** Simple current price only query.
+    /** Simple current price only query.
    * Price model varies depending if there are multiple tickers:
    * {{{
    * ❯ curl 'https://api.twelvedata.com/price?apikey=...&symbol=AAPL,MSFT'
@@ -35,12 +55,12 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    *
    * }}}
    */
-  def fetchPrices(symbols: Seq[model.Symbol]): ZIO[Any, Throwable, TickerToApiPriceMap] = {
+  def fetchPrices(symbols: Seq[String]): ZIO[Any, Throwable, TickerToApiPriceMap] = {
     import net.specula.twelvedata.client.model.ApiCodecs.*
     val url = TwelveDataUrls.findPriceUrl(symbols, config)
     for {
       _ <- zio.Console.printLine(s"Fetching prices: ${cleanUrl(url)}")
-      res <- Client.request(url).provide(requiredClientLayer)
+      res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
 
       // If multiple tickers are being queried, the JSON in the response body format will correspond to TickerToApiPriceMap.
@@ -49,7 +69,7 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
       multiSymbolResponse =
         symbols.toList match
           case List(singleSymbol) =>
-            response.fromJson[ApiPrice].map(apiPrice => Map(singleSymbol.name -> apiPrice))
+            response.fromJson[ApiPrice].map(apiPrice => Map(singleSymbol -> apiPrice))
           case _ =>
             response.fromJson[TickerToApiPriceMap]
 
@@ -90,17 +110,21 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    *    }, ...
    * }}}
    * */
-  def fetchTimeSeries(interval: TimeSeriesIntervalQuery): Task[Map[model.Symbol, PriceBarSeries]] = {
+  def fetchTimeSeries(interval: TimeSeriesIntervalQuery): Task[Map[String, PriceBarSeries]] = {
 
     val symbols = interval.symbols
-    val url = TwelveDataUrls.baseUrl + s"/time_series?interval=${interval.timeSeriesInterval.apiName}" +
-      s"&symbol=${symbols.mkString(",")}" +
-      s"&end_date=2023-05-12" +
-      s"&apikey=${config.apiKey}"
+    val baseUrl = TwelveDataUrls.baseUrl
+    val apiName = interval.timeSeriesInterval.apiName
+    val symbolsStr = symbols.mkString(",")
 
+    val startDateParam = interval.startDate.map(date => s"&start_date=$date").getOrElse("")
+    val endDateParam = interval.endDate.map(date => s"&end_date=$date").getOrElse("")
+    val apiKeyParam = s"&apikey=${config.apiKey}"
+
+    val url = s"$baseUrl/time_series?interval=$apiName&symbol=$symbolsStr$startDateParam$endDateParam$apiKeyParam"
     for {
       _ <- zio.Console.printLine(s"URL: $url")
-      res <- Client.request(url).provide(requiredClientLayer)
+      res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
       _ <- {
         if (!res.status.isSuccess || response.contains("""{"code":4""")) // it seems 200 status will be returned even if the request is invalid, so we check for this specific error code
@@ -108,13 +132,13 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
         else
           ZIO.unit
       }
-      remoteResponseParsed = parseResponse(response, symbols.map(model.Symbol.fromString))
+      remoteResponseParsed = parseResponse(response, symbols)
 
       // convert the twelvedata api either to a ZIO function
       res2
         <- ZIO.fromEither(remoteResponseParsed)
-          .mapError(new RuntimeException(_))
-          .map(_.map { case (k, v) => model.Symbol.fromString(k) -> v }.toMap)
+        .mapError(new RuntimeException(_))
+        .map(_.map { case (k, v) => k -> v }.toMap)
     } yield {
       res2
     }
@@ -123,20 +147,31 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
   /** fetch historical data, maximum 5000 records per request, buffers all in memory */
   def fetchHistoricalData(req: TwelveDataHistoricalDataRequest): Task[TwelveDataHistoricalDataBatchResponse] = {
-    import zio.json.*
     import net.specula.twelvedata.client.model.json.JsonCodecs.*
+    import zio.json.*
 
     val url = TwelveDataUrls.baseUrl + s"/complex_data?apikey=${config.apiKey}"
 
     for {
-      _ <- zio.Console.printLine(s"URL: $url")
+//      _ <- zio.Console.printLine(s"fetching historical: $url")
+
+//      _ <- zio.Console.printLine(s"*** request body: \n${req.toJsonPretty}\n")
+
       res <- Client.request(url, method = Method.POST, content = Body.fromString(req.toJson))
-        .provide(requiredClientLayer)
+        .provide(defaultClientLayer)
+
       responseString <-
-        if (res.status.isSuccess)
+        if (res.status.isSuccess) {
           res.body.asString
-        else
-          ZIO.fail(new RuntimeException(s"Error fetching historical data: ${res.status} ${res.body.asString}"))
+        } else {
+          Console.printLine(s"ERROR IN RESPONSE") *>
+            Console.printLine(s"-----------------") *>
+            Console.printLine(s"ERROR: Response headers was: ${res.headers.mkString(",")}") *>
+            Console.printLine(s"ERROR: Response status was: ${res.status}") *>
+            Console.printLine(s"ERROR: Request JSON body was: \n${req.toJson}") *>
+            Console.printLine(s"ERROR: Response JSON body was: \n${res.body.asString}") *>
+            ZIO.fail(new RuntimeException(s"Error fetching historical data: ${res.status} ${res.body.asString}"))
+        }
 
       remoteResponseParsed <-
         ZIO.fromEither(responseString.fromJson[TwelveDataHistoricalDataBatchResponse])
@@ -145,31 +180,6 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
           .tapError(_ => Console.printLine(s"ERROR: Response JSON body was: ${responseString.replaceAll("\n", "")}"))
     } yield remoteResponseParsed
   }
-
-  //  /** stream historical data, maximum 5000 records per request */
-  //  def streamHistoricalData(req: TwelveDataHistoricalDataRequest): Task[TwelveDataHistoricalDataResponse] = {
-  //    val url = TwelveDataUrls.baseUrl + s"/complex_data?apikey=${config.apiKey}"
-  //
-  //    for {
-  ////      _ <- zio.Console.printLine(s"URL: $url")
-  //      res <-
-  //        Client.request(url, method = Method.POST, content = Body.fromString(req.toJson))
-  //          .provide(requiredClientLayer)
-  //
-  //      response =
-  //        if (res.status.isSuccess)
-  //          res.body.asStream
-  //        else
-  //          ZStream.fail(new RuntimeException(s"Error fetching historical data: ${res.status} ${res.body.asString}"))
-  //
-  //      _ <- response.map(x => x)
-  ////      remoteResponseParsed <-
-  ////        ZIO.fromEither(responseString.fromJson[TwelveDataHistoricalDataResponse])
-  ////        .mapError(new RuntimeException(_))
-  ////        .tapError(_ => Console.printLine(s"ERROR: Request JSON body was: ${req.toJson}"))
-  ////        .tapError(_ => Console.printLine(s"ERROR: Response JSON body was: ${responseString.replaceAll("\n", "")}"))
-  //    } yield remoteResponseParsed
-  //  }
 
   /**
    * as in other endpoints, the response body format varies depending on whether multiple tickers are being queried.
@@ -180,11 +190,11 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    * @param symbols  tickers we asked to look up in the request (assumes the response has the same tickers?)
    * @return
    */
-  private def parseResponse(response: String, symbols: List[model.Symbol]): Either[String, TickerToTimeSeriesItemMap] = {
+  private def parseResponse(response: String, symbols: List[String]): Either[String, TickerToTimeSeriesItemMap] = {
     symbols match {
       case List(singleSymbol) =>
         response.fromJson[PriceBarSeries]
-          .map(timeSeriesItem => Map(singleSymbol.name -> timeSeriesItem))
+          .map(timeSeriesItem => Map(singleSymbol -> timeSeriesItem))
       case Nil =>
         sys.error("Symbols required")
       case _ =>
@@ -197,6 +207,22 @@ class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
 object TwelveDataClient:
 
+  // ZIO Service pattern - templates for invoking methods of the TwelveDataClient instance from the ZIO environment - https://zio.dev/reference/service-pattern/
+  def fetchHistoricalData(request: TwelveDataHistoricalDataRequest): ZIO[TwelveDataClient, Throwable, TwelveDataHistoricalDataBatchResponse] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchHistoricalData(request))
+
+  def fetchQuote(symbols: List[String]): ZIO[TwelveDataClient, Throwable, ApiQuote] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchQuote(symbols))
+
+  def fetchTimeSeries(intervalQuery: TimeSeriesIntervalQuery): ZIO[TwelveDataClient, Throwable, Map[String, PriceBarSeries]] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchTimeSeries(intervalQuery))
+
+  def fetchPrices(tickers: String*): ZIO[TwelveDataClient, Throwable, TickerToApiPriceMap] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchPrices(tickers))
+
+  def newSession(tickers: List[String]): ZIO[Scope & TwelveDataClient & TwelveDataClient, Throwable, WebsocketSession] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.newSession(tickers))
+
   /** A ZLayer that creates a TwelveDataClient from its requirements in the Environment */
   lazy val live: ZLayer[Client & TwelveDataConfig, Nothing, TwelveDataClient] =
     ZLayer {
@@ -206,17 +232,8 @@ object TwelveDataClient:
       } yield TwelveDataClient(requiredClient, requiredConfig)
     }
 
-  // ZIO Service pattern - templates for invoking methods of the TwelveDataClient instance from the ZIO environment - https://zio.dev/reference/service-pattern/
-  def fetchQuote(symbols: List[model.Symbol]): ZIO[TwelveDataClient, Throwable, ApiQuote] =
-    ZIO.serviceWithZIO[TwelveDataClient](_.fetchQuote(symbols))
 
-  def fetchHistoricalData(request: TwelveDataHistoricalDataRequest): ZIO[TwelveDataClient, Throwable, TwelveDataHistoricalDataBatchResponse] =
-    ZIO.serviceWithZIO[TwelveDataClient](_.fetchHistoricalData(request))
-
-  def fetchTimeSeries(intervalQuery: TimeSeriesIntervalQuery): ZIO[TwelveDataClient, Throwable, Map[model.Symbol, PriceBarSeries]] =
-    ZIO.serviceWithZIO[TwelveDataClient](_.fetchTimeSeries(intervalQuery))
-
-  def fetchPrices(tickers: String*): ZIO[TwelveDataClient, Throwable, TickerToApiPriceMap] =
-    ZIO.serviceWithZIO[TwelveDataClient](_.fetchPrices(tickers.map(model.Symbol.fromString)))
+  def fetchEOD(symbol: String): ZIO[TwelveDataClient, Throwable, ApiEOD] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchEOD(symbol))
 
 end TwelveDataClient

@@ -82,7 +82,8 @@ object ComplexMethodList {
 
 object ComplexMethod {
   def timeseries(): ComplexMethod =
-    ComplexMethod("time_series", Map.empty) // Map("start_date" -> startDate.toString, "end_date" -> endDate.toString))
+//    ComplexMethod("time_series", Map("start_date" -> "2020-03-13")) //Map("name"->"ema", "time_period" -> 12)) // Map("start_date" -> startDate.toString, "end_date" -> endDate.toString))
+    ComplexMethod("time_series", Map.empty) //Map("name"->"ema", "time_period" -> 12)) // Map("start_date" -> startDate.toString, "end_date" -> endDate.toString))
 
 }
 

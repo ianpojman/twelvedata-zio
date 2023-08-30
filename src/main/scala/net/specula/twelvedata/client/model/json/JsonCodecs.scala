@@ -1,16 +1,15 @@
 package net.specula.twelvedata.client.model.json
 
-import net.specula.twelvedata.client.model.{Symbol, *}
+import net.specula.twelvedata.client.model.{*}
 import zio.json.internal.Write
 import zio.json.{DeriveJsonEncoder, JsonDecoder, JsonEncoder}
 
 object JsonCodecs {
   import net.specula.twelvedata.client.rest.ComplexMethodList.*
   import zio.json.*
+  implicit val apiEODDecoder: JsonDecoder[ApiEOD] = DeriveJsonDecoder.gen
   implicit val priceBarDecoder: JsonDecoder[PriceBar] = DeriveJsonDecoder.gen
   implicit val priceBarEncoder: JsonDecoder[PriceBarSeries] = DeriveJsonDecoder.gen
-  implicit val symbolEncoder: JsonEncoder[Symbol] = DeriveJsonEncoder.gen
-  implicit val symbolDecoder: JsonDecoder[Symbol] = DeriveJsonDecoder.gen
 
 
   implicit val timeSeriesIntervalEncoder: JsonEncoder[TimeSeriesInterval] = new JsonEncoder[TimeSeriesInterval] {

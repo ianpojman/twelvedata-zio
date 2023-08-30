@@ -21,6 +21,6 @@ case class Event(event: String,
                  price: Option[Double],
                  dayVolume: Option[Double])
 
-object EventCodecs {
+object Event {
   implicit val eventDecoder: JsonDecoder[Event] = DeriveJsonDecoder.gen
 }

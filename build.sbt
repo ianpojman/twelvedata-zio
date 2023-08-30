@@ -12,7 +12,7 @@ libraryDependencies ++= Seq(
   "dev.zio" %% "zio-config-magnolia" % "4.0.0-RC14",
   "dev.zio" %% "zio-config-typesafe" % "4.0.0-RC14",
   "dev.zio" %% "zio-streams" % "2.0.13",
-  "dev.zio" %% "zio-http" % "3.0.0-RC1" // todo update to rc2 which changes some things, see https://github.com/zio/zio-http/pull/2152
+  "dev.zio" %% "zio-http" % "3.0.0-RC2"
 )
 
 

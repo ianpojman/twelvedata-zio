@@ -1,6 +1,7 @@
 package net.specula.twelvedata.client.model
 
 import net.specula.twelvedata.client.rest.{ComplexMethod, ComplexMethodList}
+import zio.http.html.meta
 
 import java.time.{Instant, LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
 import java.time.format.DateTimeFormatter
@@ -63,7 +64,7 @@ WARNING: The classes in this file represent a 1:1 mapping of the JSON response m
  * */
 case class TwelveDataHistoricalDataRequest(symbols: List[String],
                                            intervals: List[TimeSeriesInterval],
-                                           methods: ComplexMethodList,
+                                           methods: ComplexMethodList = ComplexMethodList(Nil),
                                            outputsize: Int = 30, // default on server side is 30
                                            start_date: Option[LocalDate] = None,
                                            end_date: Option[LocalDate] = None,
@@ -99,46 +100,33 @@ case class ResponseElementValues(datetime: String,
                                  volume: Option[String],
                                  ema: Option[String]
                                 ) {
+  def closeValue: Option[Double] = close.map(_.toDouble)
+  def openValue: Option[Double] = open.map(_.toDouble)
+
 
   def instant(timeZone: String): Instant =
-    ResponseElementValues.localDateToInstant(this.datetime, timeZone)
+    TwelveDataDateTimeHelpers.localDateToInstant(this.datetime, timeZone)
 
-  def toPriceBar: Option[ResponsePriceBar] = for {
+  def toPriceBar(timezone: String): Option[PriceBar] = for {
     o <- open
     h <- high
     l <- low
     c <- close
     v <- volume
-  } yield ResponsePriceBar(o.toDouble, h.toDouble, l.toDouble, c.toDouble, v.toDouble)
+  } yield PriceBar(datetime, o.toDouble, h.toDouble, l.toDouble, c.toDouble, Some(v.toDouble))
 }
 
-/** since json model has Options, this is a flattened version */
-case class ResponsePriceBar(open: Double,
-                            high: Double,
-                            low: Double,
-                            close: Double,
-                            volume: Double)
 
-object ResponseElementValues {
-  def localDateToInstant(date: String, timeZone: String): Instant = {
-    if (date.contains("T") || date.contains(" ")) {
-      // Datetime format
-      val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-      val parsedDateTime = LocalDateTime.parse(date.replace('T', ' '), formatter)
-      parsedDateTime.atZone(ZoneId.of(timeZone)).toInstant
-    } else {
-      // Only date format
-      val parsedLocalDate = LocalDate.parse(date)
-      parsedLocalDate.atStartOfDay(ZoneId.of(timeZone)).toInstant
-    }
-  }
-}
 /** A list of values which are either price bars (timestamped OHLC data) or ema data.
  * NOTE: A [[zio.json.JsonDecoder]] is generated based on this class, so the structure and names cannot be changed, or the response won't be parsed correctly.
  */
 case class TwelveDataHistoricalDataResponse(meta: ResponseElementMetadata,
                                             values: List[ResponseElementValues],
-                                            status: String)
+                                            status: String) {
+  def firstValue: Option[ResponseElementValues] = values.headOption
+  def lastValue: Option[ResponseElementValues] = values.lastOption
+
+}
 
 /** In the Twelvedata API, each "method" generates a different response, which we call are calling [[TwelveDataHistoricalDataResponse]] here.
  * NOTE: A [[zio.json.JsonDecoder]] is generated based on this class, so the structure and names cannot be changed, or the response won't be parsed correctly.
@@ -146,6 +134,11 @@ case class TwelveDataHistoricalDataResponse(meta: ResponseElementMetadata,
  * @param data Responses by symbol(/method?) */
 case class TwelveDataHistoricalDataBatchResponse(data: Option[List[TwelveDataHistoricalDataResponse]],
                                                  status: String) {
+
+
+  def valuesForSymbol(symbol: String): Option[List[ResponseElementValues]] =
+    responseBySymbol.get(symbol).map(_.values)
+
   def responseBySymbol: Map[String, TwelveDataHistoricalDataResponse] =
     data.getOrElse(Nil).map { e =>
       e.meta.symbol -> e
