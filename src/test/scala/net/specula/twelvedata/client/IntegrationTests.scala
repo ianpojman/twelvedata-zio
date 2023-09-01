@@ -59,6 +59,7 @@ object IntegrationTests extends ZIOSpecDefault {
         assertTrue(res.datetime == "2022-04-08")
       }
     },
+
     // note that if you want a price at open of a given date, you need to fetch the date after it. here, we want 2022-04-08 open, so we fetch 2022-04-09
     test("fetch multiple time series - getting the price as of a specific date w/ different intervals") {
       val request = TwelveDataHistoricalDataRequest(

@@ -121,11 +121,12 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     val endDateParam = interval.endDate.map(date => s"&end_date=$date").getOrElse("")
     val apiKeyParam = s"&apikey=${config.apiKey}"
 
-    val url = s"$baseUrl/time_series?interval=$apiName&symbol=$symbolsStr$startDateParam$endDateParam$apiKeyParam"
+    val url = s"$baseUrl/time_series?interval=$apiName&outputsize=${interval.outputCount}&symbol=$symbolsStr$startDateParam$endDateParam$apiKeyParam"
     for {
-      _ <- zio.Console.printLine(s"URL: $url")
+//      _ <- zio.Console.printLine(s"Time series request URL: $url")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
+//      _ <- Console.printLine("RESPONSE BODY: \n"+response)
       _ <- {
         if (!res.status.isSuccess || response.contains("""{"code":4""")) // it seems 200 status will be returned even if the request is invalid, so we check for this specific error code
           ZIO.fail(new RuntimeException(s"Response: ${response.replaceAll("\n", "")}"))
@@ -154,8 +155,6 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
     for {
 //      _ <- zio.Console.printLine(s"fetching historical: $url")
-
-//      _ <- zio.Console.printLine(s"*** request body: \n${req.toJsonPretty}\n")
 
       res <- Client.request(url, method = Method.POST, content = Body.fromString(req.toJson))
         .provide(defaultClientLayer)

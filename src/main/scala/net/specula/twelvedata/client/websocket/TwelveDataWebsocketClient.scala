@@ -1,15 +1,13 @@
 package net.specula.twelvedata.client.websocket
 
-import net.specula.twelvedata.client.{Layers, TwelveDataClient}
+import net.specula.twelvedata.client.TwelveDataClient
 import net.specula.twelvedata.client.model.{Event, PriceResponse}
 import zio.*
 import zio.http.*
 import zio.http.ChannelEvent.*
 import zio.http.ChannelEvent.UserEvent.HandshakeComplete
-import zio.http.html.q
 import zio.stream.ZStream
 
-import java.time.Instant
 import scala.util.Right
 
 trait PriceHandler {
@@ -20,28 +18,12 @@ case class WebsocketSession(url: String,
                             tickers: Set[String],
                             queue: Queue[Event]) {
 
-  // val tickers = Set("AAPL", "MSFT", "GOOG", "AMZN", "FB", "TSLA", "NVDA", "PYPL", "ADBE", "NFLX", "INTC", "CMCSA", "PEP", "CSCO", "AVGO", "TMUS", "TXN", "QCOM", "AMGN", "CHTR", "SBUX", "GILD", "MDLZ", "FISV", "INTU", "BKNG", "ADP", "ISRG", "VRTX", "REGN", "AMD", "MU", "ATVI", "CSX", "ILMN", "ADI", "ADSK", "BIIB", "AMAT", "MELI", "LRCX", "WBA", "JD", "NXPI", "ADI", "ADSK", "BIIB", "AMAT", "MELI", "LRCX", "WBA", "JD", "NXPI", "KHC", "EXC", "EBAY", "ROST", "MAR", "WDC", "CTSH", "ORLY", "EA", "BIDU", "KLAC", "MNST", "WDAY", "NTES", "XEL", "SNPS", "CTAS", "VRSK", "PCAR", "XLNX", "PAYX", "DLTR", "ALGN", "ANSS", "SIRI", "CDNS", "FAST", "SWKS", "CPRT", "MXIM", "CERN", "CHKP", "INCY", "ULTA", "TTWO", "FOXA", "FOX", "IDXX", "MCHP", "NTAP", "LULU", "VRSN", "ASML", "TCOM", "CDW", "SGEN", "EXPE", "WLTW", "DOCU", "CTXS", "KLAC", "MNST", "WDAY", "NTES", "XEL", "SNPS", "CTAS", "VRSK", "PCAR", "XLNX", "PAYX", "DLTR", "ALGN", "ANSS", "SIRI", "CDNS", "FAST", "SWKS", "CPRT", "MX
-
-
-//
-//  def checkConnection(): ZIO[Scope, Nothing, Unit] =
-//    ref.get.flatMap {
-//      case Some(fiberId) =>
-//        // nothing to do, we're already connected
-//        ZIO.unit
-//      case None =>
-////        ZIO.scoped {
-//          socketApp(tickers.toList)
-//            .connect(url)
-//            .provide(Client.default, Scope.default)
-//            .forkDaemon
-//            .tap(fiberId => ref.set(Some(fiberId.id)))
-//            .unit
-////        }
-//    }
-
-  /** start a new stream based on whatever the active websocket client has downloaded and enqueued */
+  /** stream raw events from 12data*/
   def stream(): ZStream[Any, Throwable, Event] = ZStream.fromQueue(queue)
+
+  /** return only the price data */
+  def streamPrices(): ZStream[Any, Throwable, PriceResponse] =
+    stream().map(x => PriceResponse.fromEvent(x)).collect { case Some(p) => p }
 }
 
 object WebsocketSession:
@@ -88,9 +70,6 @@ end WebsocketSession
 
 object TwelveDataWebsocketClient {
 
-  import net.specula.twelvedata.client.model.Event.*
-  import zio.json.*
-
   /**
    * Opens a websocket with Twelvedata API and streams prices for the given tickers.
    */
@@ -99,13 +78,11 @@ object TwelveDataWebsocketClient {
     for {
       client <- ZIO.service[TwelveDataClient]
       config = client.config
-      ref <- Ref.make[Option[FiberId]](None)
       url = s"wss://ws.twelvedata.com/v1/quotes/price?apikey=${config.apiKey}"
       _ <- WebsocketSession.socketApp(tickers.toList, q)
         .connect(url)
         .provide(Client.default, Scope.default)
         .forkDaemon
-//        .tap(fiberId => ref.set(Some(fiberId.id)))
     } yield WebsocketSession(url, tickers.toSet, q)
   }
 }
