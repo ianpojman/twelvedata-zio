@@ -1,6 +1,6 @@
 package net.specula.twelvedata.client
 
-import net.specula.twelvedata.client.model.{TimeSeriesInterval, TimeSeriesIntervalQuery, TwelveDataHistoricalDataRequest}
+import net.specula.twelvedata.client.model.{TimeSeriesInterval, TimeSeriesIntervalQuery, TwelveDataComplexDataRequest}
 import net.specula.twelvedata.client.rest.{ComplexMethod, ComplexMethodList}
 import zio.*
 import zio.test.*
@@ -62,7 +62,7 @@ object IntegrationTests extends ZIOSpecDefault {
 
     // note that if you want a price at open of a given date, you need to fetch the date after it. here, we want 2022-04-08 open, so we fetch 2022-04-09
     test("fetch multiple time series - getting the price as of a specific date w/ different intervals") {
-      val request = TwelveDataHistoricalDataRequest(
+      val request = TwelveDataComplexDataRequest(
         symbols = List("AAPL"),
         intervals = List(TimeSeriesInterval.OneDay),
         methods = ComplexMethodList.fromComplexMethods(ComplexMethod.timeseries()),
@@ -72,9 +72,9 @@ object IntegrationTests extends ZIOSpecDefault {
       )
 
       for {
-        response <- TwelveDataClient.fetchHistoricalData(request)
+        response <- TwelveDataClient.fetchComplexData(request)
           .provide(Layers.defaultLayers)
-        _ <- zio.Console.printLine("RESPONSE = " + response)
+//        _ <- zio.Console.printLine("RESPONSE = " + response)
       } yield {
         val firstResult = response.dataList.headOption
 //        val responses = response.dataList.map(i => s"Response for symbol ${i.meta.symbol} at interval ${i.meta.interval}, dates = "+i.values.map(_.datetime).mkString(","))
@@ -85,7 +85,7 @@ object IntegrationTests extends ZIOSpecDefault {
     },
 
     test("fetch historical data with multiple tickers and timeframes") {
-      val request = TwelveDataHistoricalDataRequest(
+      val request = TwelveDataComplexDataRequest(
         symbols = List("AAPL", "MSFT"),
         intervals = List(TimeSeriesInterval.OneMinute,TimeSeriesInterval.FiveMinutes),
         methods = ComplexMethodList.fromComplexMethods(ComplexMethod.timeseries()),
@@ -95,7 +95,7 @@ object IntegrationTests extends ZIOSpecDefault {
       )
 
       for {
-        response <- TwelveDataClient.fetchHistoricalData(request)
+        response <- TwelveDataClient.fetchComplexData(request)
           .provide(Layers.defaultLayers)
 //        _ <- zio.Console.printLine("RESPONSE = "+response)
       } yield {

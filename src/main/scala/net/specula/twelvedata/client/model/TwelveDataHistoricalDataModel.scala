@@ -62,17 +62,17 @@ WARNING: The classes in this file represent a 1:1 mapping of the JSON response m
  * @param methods    Accepts: "time_series", "quote", "price" or any of the technical indicators (e.g. "ema"). TODO: • Could be either a string with method name, then default parameters are taken. Alternatively, with object you might specify custom parameters.
  * @param outputsize Number of results to return. Default is 30
  * */
-case class TwelveDataHistoricalDataRequest(symbols: List[String],
-                                           intervals: List[TimeSeriesInterval],
-                                           methods: ComplexMethodList = ComplexMethodList(Nil),
-                                           outputsize: Int = 30, // default on server side is 30
-                                           start_date: Option[LocalDate] = None,
-                                           end_date: Option[LocalDate] = None,
-                                           timezone: Option[String] = None, // e.g. "America/New_York"
+case class TwelveDataComplexDataRequest(symbols: List[String],
+                                        intervals: List[TimeSeriesInterval],
+                                        methods: ComplexMethodList = ComplexMethodList(Nil),
+                                        outputsize: Int = 30, // default on server side is 30
+                                        start_date: Option[LocalDate] = None,
+                                        end_date: Option[LocalDate] = None,
+                                        timezone: Option[String] = None, // e.g. "America/New_York"
                                           )
 
-object TwelveDataHistoricalDataRequest:
-end TwelveDataHistoricalDataRequest
+object TwelveDataComplexDataRequest:
+end TwelveDataComplexDataRequest
 
 /** Indicator data which is optional and may be included as part of the complex_data endpoint response */
 case class Indicator(name: String, series_type: String, time_period: Int)

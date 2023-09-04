@@ -1,7 +1,7 @@
 package net.specula.twelvedata.report
 
 import net.specula.twelvedata.client.{Layers, TwelveDataClient}
-import net.specula.twelvedata.client.model.{TimeSeriesInterval, TwelveDataHistoricalDataRequest}
+import net.specula.twelvedata.client.model.{TimeSeriesInterval, TwelveDataComplexDataRequest}
 import net.specula.twelvedata.client.rest.{ComplexMethod, ComplexMethodList}
 import zio.*
 
@@ -49,7 +49,7 @@ object PerformanceReport {
     println(s"Fetching data for Ticker: $ticker, Period: ${period.name}, Start Date: $currentDate") // Print the ticker, period, and start date
 
 
-    val requestData = TwelveDataHistoricalDataRequest(
+    val requestData = TwelveDataComplexDataRequest(
       symbols = List(ticker),
       intervals = List(period.interval), // Use the interval from the period
       methods = ComplexMethodList.fromComplexMethods(ComplexMethod.timeseries()),
@@ -58,7 +58,7 @@ object PerformanceReport {
       timezone = Some("America/New_York")
     )
     for {
-      response <- TwelveDataClient.fetchHistoricalData(requestData)
+      response <- TwelveDataClient.fetchComplexData(requestData)
 
       values = response.valuesForSymbol(ticker)
 

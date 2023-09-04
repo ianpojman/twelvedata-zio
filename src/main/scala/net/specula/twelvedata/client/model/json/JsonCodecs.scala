@@ -17,7 +17,7 @@ object JsonCodecs {
       out.write("\"" + a.apiName + "\"")
     }
   }
-  implicit val historicalDataRequestEncoder: JsonEncoder[TwelveDataHistoricalDataRequest] = DeriveJsonEncoder.gen
+  implicit val historicalDataRequestEncoder: JsonEncoder[TwelveDataComplexDataRequest] = DeriveJsonEncoder.gen
   implicit val dataElementDecoder: JsonDecoder[TwelveDataHistoricalDataResponse] = DeriveJsonDecoder.gen
   implicit val valueDecoder: JsonDecoder[ResponseElementValues] = DeriveJsonDecoder.gen
   implicit val indicatorDecoder: JsonDecoder[Indicator] = DeriveJsonDecoder.gen
