@@ -118,8 +118,8 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
       println("Fetching data: " + interval)
       val maxOutputSize = interval.outputCount
 
-      def fetchBatch(batchInterval: TimeSeriesIntervalQuery): Task[Map[String, PriceBarSeries]] = {
-        println("Fetching batch: " + batchInterval)
+      def fetchBatch(batchQuery: TimeSeriesIntervalQuery): Task[Map[String, PriceBarSeries]] = {
+        println("Fetching batch: " + batchQuery)
         val symbols = interval.symbols
         val baseUrl = TwelveDataUrls.baseUrl
         val apiName = interval.timeSeriesInterval.apiName
@@ -135,18 +135,21 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
           res <- Client.request(url).provide(defaultClientLayer)
           response <- res.body.asString
           //      _ <- Console.printLine("RESPONSE BODY: \n"+response)
-          _ <- {
-            if (!res.status.isSuccess || response.contains("""{"code":4""")) // it seems 200 status will be returned even if the request is invalid, so we check for this specific error code
-              ZIO.fail(new RuntimeException(s"Response: ${response.replaceAll("\n", "")}"))
-            else
-              ZIO.unit
+          res2 <- {
+            if (!res.status.isSuccess || response.contains("""{"code":4""")) {
+              if (response.contains("No data is available on the specified dates.")) {
+                Console.printLine(s"No data available for query: $batchQuery") *> ZIO.succeed(Map.empty[String, PriceBarSeries])
+              } else {
+                ZIO.fail(new RuntimeException(s"Response: ${response.replaceAll("\n", "")}"))
+              }
+          } else {
+              val remoteResponseParsed = parseResponse(response, symbols)
+              ZIO
+                .fromEither(remoteResponseParsed)
+                .mapError(new RuntimeException(_))
+                .map(_.map { case (k, v) => k -> v }.toMap)
+            }
           }
-          remoteResponseParsed = parseResponse(response, symbols)
-
-          // convert the twelvedata api either to a ZIO function
-          res2 <- ZIO.fromEither(remoteResponseParsed)
-            .mapError(new RuntimeException(_))
-            .map(_.map { case (k, v) => k -> v }.toMap)
         } yield {
           res2
         }

@@ -72,8 +72,6 @@ object ComplexMethodList {
           out.write('"')
         case i: Int =>
           out.write(i.toString)
-        case other =>
-          throw new RuntimeException(s"unsupported type: $other")
       }
     }
     out.write('}')
