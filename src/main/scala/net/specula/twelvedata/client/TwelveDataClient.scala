@@ -114,6 +114,9 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   def fetchTimeSeries(interval: TimeSeriesIntervalQuery): ZIO[Any, TwelveDataError, Map[String, PriceBarSeries]] =
     if (interval.outputCount > 5000) {
       ZIO.fail(TwelveDataError.InvalidQuery("Max output size must be <= 5000"))
+    }else if (interval.startDate==interval.endDate) {
+      ZIO.fail(TwelveDataError.InvalidQuery(s"Start date is the same as end date: ${interval.startDate}"))
+
     } else {
       println("Fetching data: " + interval)
       val maxOutputSize = interval.outputCount
