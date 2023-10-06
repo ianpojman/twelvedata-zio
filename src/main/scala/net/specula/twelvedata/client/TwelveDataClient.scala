@@ -46,14 +46,23 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     } yield sess
   }
 
-  /** Simple current price only query.
-   * Price model varies depending if there are multiple tickers:
+  /**
+   * Fetch current market price for the given symbols.
+   * In TwelveData, the price response model varies depending if there are multiple tickers:
    * {{{
    * ❯ curl 'https://api.twelvedata.com/price?apikey=...&symbol=AAPL,MSFT'
    * {"AAPL":{"price":"182.00000"},"MSFT":{"price":"327.79999"}}%
    * ❯ curl 'https://api.twelvedata.com/price?apikey=...&symbol=AAPL'
    * {"price":"182.00000"}%
+   * }}}
+   * We convert the single symbol response to a map with a single entry so that a single type is returned from this API regardless of whether its a single ticker query or a batch one.
    *
+   * TODO: handle when some symbols arent found, e.g.:
+   * {{{
+   *   {"SPY":{"price":"433.53000"},"IWM":{"price":"177.77500"},
+   *    "NIKK":{"code":400,"message":"**symbol** not found: NIKK. Please specify it correctly according to API Documentation.","status":"error","meta":{"symbol":"SPY,IWM,NIKK,AAPL,NVDA,GOOG,AMZN,BTC/USD,ETH/USD,TSLA,MSFT,AMZN,UGA,XOP,GOLD,SLV,XLB,XLE,XLF,XLI,XLK,XLP,XLU,XLV,XLY","interval":"","exchange":""}},
+   *    "AAPL":{"price":"174.90650"},"NVDA":{"price":"413.52000"},"GOOG":{"price":"132.63000"},
+   *    "AMZN":{"price":"130.64010"},"BTC/USD":{"price":"26575.60000"}
    * }}}
    */
   def fetchPrices(symbols: Seq[String]): ZIO[Any, Throwable, TickerToApiPriceMap] = {
@@ -134,7 +143,8 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
         val url = s"$baseUrl/time_series?interval=$apiName&outputsize=${interval.outputCount}&symbol=$symbolsStr$startDateParam$endDateParam$apiKeyParam"
         for {
-          //      _ <- zio.Console.printLine(s"Time series request URL: $url")
+          _ <- zio.Console.printLine(s"Fetching batch: URL: $url").orDie
+
           res: Response <- Client.request(url).provide(defaultClientLayer)
             .mapError(e => TwelveDataError.RemoteException.ofMessage(e.toString))
 
@@ -233,6 +243,38 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   }
 
 
+
+    def fetchOptionExpirations(symbol: String): Task[OptionExpirations] = {
+      val baseUrl = TwelveDataUrls.baseUrl
+      val apiKeyParam = s"&apikey=${config.apiKey}"
+
+      val url = s"$baseUrl/options/expiration?symbol=$symbol$apiKeyParam"
+
+      for {
+        _ <- zio.Console.printLine(s"Fetching option expirations: ${cleanUrl(url)}")
+        res <- Client.request(url).provide(defaultClientLayer)
+        response <- res.body.asString
+        expirations <- ZIO.fromEither(response.fromJson[OptionExpirations])
+          .mapError(new RuntimeException(_))
+      } yield expirations
+    }
+
+    def fetchOptionChain(symbol: String, expiration_date: String): Task[OptionData] = {
+      val baseUrl = TwelveDataUrls.baseUrl
+      val apiKeyParam = s"&apikey=${config.apiKey}"
+      val expirationParam = s"&expiration_date=$expiration_date"
+
+      val url = s"$baseUrl/options/chain?symbol=$symbol$expirationParam$apiKeyParam"
+
+      for {
+        _ <- zio.Console.printLine(s"Fetching option chain: ${cleanUrl(url)}")
+        res <- Client.request(url).provide(defaultClientLayer)
+        response <- res.body.asString
+        optionsData <- ZIO.fromEither(response.fromJson[OptionData])
+          .mapError(new RuntimeException(_))
+      } yield optionsData
+    }
+
 }
 
 object TwelveDataClient:
@@ -268,5 +310,12 @@ object TwelveDataClient:
 
   def fetchEOD(symbol: String): ZIO[TwelveDataClient, Throwable, ApiEOD] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchEOD(symbol))
+
+
+  def fetchOptionExpirations(symbol: String): ZIO[TwelveDataClient, Throwable, OptionExpirations] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchOptionExpirations(symbol))
+
+  def fetchOptionChain(symbol: String, expiration_date: String): ZIO[TwelveDataClient, Throwable, OptionData] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchOptionChain(symbol, expiration_date))
 
 end TwelveDataClient

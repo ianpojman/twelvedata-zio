@@ -14,14 +14,12 @@ object IntegrationTests extends ZIOSpecDefault {
     test("fetch single price") {
       for {
         response <- TwelveDataClient.fetchPrices("BTC/USD")
-          .provide(Layers.defaultLayers)
       } yield assertTrue(response.keySet.contains("BTC/USD"))
     },
 
     test("fetch multiple prices") {
       for {
         response <- TwelveDataClient.fetchPrices("BTC/USD", "AAPL")
-          .provide(Layers.defaultLayers)
       } yield
         assertTrue(response.keySet == Set("AAPL", "BTC/USD"))
     },
@@ -37,7 +35,6 @@ object IntegrationTests extends ZIOSpecDefault {
               timezone = "America/New_York"
             )
           )
-          .provide(Layers.defaultLayers)
       } yield assertTrue(response.keySet == Set("AAPL","MSFT"))
     },
 
@@ -53,7 +50,6 @@ object IntegrationTests extends ZIOSpecDefault {
               outputCount = 1
             )
           )
-          .provide(Layers.defaultLayers)
       } yield {
         val res = response.head._2.values.head
         assertTrue(res.datetime == "2022-04-08")
@@ -73,7 +69,6 @@ object IntegrationTests extends ZIOSpecDefault {
 
       for {
         response <- TwelveDataClient.fetchComplexData(request)
-          .provide(Layers.defaultLayers)
 //        _ <- zio.Console.printLine("RESPONSE = " + response)
       } yield {
         val firstResult = response.dataList.headOption
@@ -96,11 +91,45 @@ object IntegrationTests extends ZIOSpecDefault {
 
       for {
         response <- TwelveDataClient.fetchComplexData(request)
-          .provide(Layers.defaultLayers)
-//        _ <- zio.Console.printLine("RESPONSE = "+response)
       } yield {
         assertTrue(response.status == "ok") &&
           assertTrue(response.dataList.headOption.map(_.values.size).exists(_ > 1))
+      }
+    },
+
+    test("fetch historical data with multiple tickers and timeframes") {
+      val request = TwelveDataComplexDataRequest(
+        symbols = List("AAPL", "MSFT"),
+        intervals = List(TimeSeriesInterval.OneMinute, TimeSeriesInterval.FiveMinutes),
+        methods = ComplexMethodList.fromComplexMethods(ComplexMethod.timeseries()),
+        start_date = Some(LocalDate.parse("2022-04-05")),
+        timezone = Some("America/New_York"),
+        outputsize = 50
+      )
+
+      for {
+        response <- TwelveDataClient.fetchComplexData(request)
+        //        _ <- zio.Console.printLine("RESPONSE = "+response)
+      } yield {
+        assertTrue(response.status == "ok") &&
+          assertTrue(response.dataList.headOption.map(_.values.size).exists(_ > 1))
+      }
+    },
+
+    test("fetch options data with multiple tickers and timeframes") {
+
+      for {
+        //OptionExpirations(Meta(AAPL,Apple Inc,USD,NASDAQ,XNGS,America/New_York),List(2023-10-06, 2023-10-13, 2023-10-20, 2023-10-27, 2023-11-03, 2023-11-10, 2023-11-17, 2023-12-15, 2024-01-19, 2024-02-16, 2024-03-15, 2024-04-19, 2024-06-21, 2024-09-20, 2024-12-20, 2025-01-17, 2025-06-20, 2025-12-19, 2026-01-16))
+        response <- TwelveDataClient.fetchOptionExpirations("AAPL")
+        sampleDate <- ZIO.fromOption(response.dates.headOption)
+
+        chain <- TwelveDataClient.fetchOptionChain("AAPL", sampleDate)
+        _ <- Console.printLine("Read options chain: "+chain)
+      } yield {
+        assertTrue(
+          chain.calls
+            .headOption
+            .exists(_.last_price>0))
       }
     },
 
@@ -112,6 +141,7 @@ object IntegrationTests extends ZIOSpecDefault {
       } yield {
         assertTrue(res.exists(_.price.isDefined))
       }
-    },
-  )
+    } @@ TestAspect.timeout(15.seconds),
+
+  ) .provide(Layers.defaultLayers, Scope.default)
 }
