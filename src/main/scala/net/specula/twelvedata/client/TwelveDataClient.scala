@@ -83,8 +83,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
           case _ =>
             response.fromJson[TickerToApiPriceMap]
 
-      e <- ZIO.fromEither(multiSymbolResponse)
-        .mapError(new RuntimeException(_))
+      e <- ZIO.fromEither(multiSymbolResponse).mapError(new RuntimeException(_))
     } yield e
   }
 
@@ -117,76 +116,83 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    *        "volume": "867211"
    *      },
    *    ....
-   *    }, ...
-   * }}}
-   * */
+   */
   def fetchTimeSeries(interval: TimeSeriesIntervalQuery): ZIO[Any, TwelveDataError, Map[String, PriceBarSeries]] =
     if (interval.outputCount > 5000) {
       ZIO.fail(TwelveDataError.InvalidQuery("Max output size must be <= 5000"))
-    }else if (interval.startDate==interval.endDate) {
+    } else if (interval.startDate == interval.endDate) {
       ZIO.fail(TwelveDataError.InvalidQuery(s"Start date is the same as end date: ${interval.startDate}"))
-
     } else {
-      println("Fetching data: " + interval)
+//       println("Fetching data: " + interval)
       val maxOutputSize = interval.outputCount
 
-      def fetchBatch(batchQuery: TimeSeriesIntervalQuery): ZIO[Any, TwelveDataError, Map[String, PriceBarSeries]] = {
-        println("Fetching batch: " + batchQuery)
-        val symbols = interval.symbols
-        val baseUrl = TwelveDataUrls.baseUrl
-        val apiName = interval.timeSeriesInterval.apiName
-        val symbolsStr = symbols.mkString(",")
+      fetchBatches(interval, maxOutputSize)
+    }
 
-        val startDateParam = interval.startDate.map(date => s"&start_date=$date").getOrElse("")
-        val endDateParam = interval.endDate.map(date => s"&end_date=$date").getOrElse("")
-        val apiKeyParam = s"&apikey=${config.apiKey}"
+  /** Subdivides the query into max batch sizes supported by Twelvedata. Fetches all the data from the requested time 
+   * frame and then combines the results. Currently its all loaded into memory, I should try to make it stream instead,
+   * but mostly doing daily candles for now, so it doesn't matter yet */
+  private def fetchBatches(interval: TimeSeriesIntervalQuery, 
+                           maxOutputSize: RuntimeFlags): ZIO[Any, TwelveDataError, Map[String, PriceBarSeries]] = {
+    
+    def fetchBatch(batchQuery: TimeSeriesIntervalQuery) = {
+      //println("Fetching batch: " + batchQuery)
+      val symbols = interval.symbols
+      val baseUrl = TwelveDataUrls.baseUrl
+      val apiName = interval.timeSeriesInterval.apiName
+      val symbolsStr = symbols.mkString(",")
 
-        val url = s"$baseUrl/time_series?interval=$apiName&outputsize=${interval.outputCount}&symbol=$symbolsStr$startDateParam$endDateParam$apiKeyParam"
-        for {
-          _ <- zio.Console.printLine(s"Fetching batch: URL: $url").orDie
+      val startDateParam = interval.startDate.map(date => s"&start_date=$date").getOrElse("")
+      val endDateParam = interval.endDate.map(date => s"&end_date=$date").getOrElse("")
+      val apiKeyParam = s"&apikey=${config.apiKey}"
 
-          res: Response <- Client.request(url).provide(defaultClientLayer)
-            .mapError(e => TwelveDataError.RemoteException.ofMessage(e.toString))
+      val url = s"$baseUrl/time_series?interval=$apiName&outputsize=${interval.outputCount}&symbol=$symbolsStr$startDateParam$endDateParam$apiKeyParam"
+      for {
+        _ <- zio.Console.printLine(s"Fetching batch: URL: $url").orDie
 
-          response <- res.body.asString.mapError(e => TwelveDataError.RemoteException.ofMessage(e.toString))
-          //      _ <- Console.printLine("RESPONSE BODY: \n"+response)
-          res2 <- {
-            if (!res.status.isSuccess || response.contains("""{"code":4""")) {
-              if (response.contains("No data is available on the specified dates.")) {
-                Console.printLine(s"No data available for query: $batchQuery").orDie *>
-                  ZIO.fail(TwelveDataError.NoDataForQuery(batchQuery))
-              } else {
-                ZIO.fail(TwelveDataError.RemoteException.ofMessage(s"Response: ${response.replaceAll("\n", "")}"))
-              }
+        res: Response <- Client.request(url).provide(defaultClientLayer)
+          .mapError(e => TwelveDataError.RemoteException.ofMessage(e.toString))
+
+        response <- res.body.asString.mapError(e => TwelveDataError.RemoteException.ofMessage(e.toString))
+        //      _ <- Console.printLine("RESPONSE BODY: \n"+response)
+        res2 <- {
+          if (!res.status.isSuccess || response.contains("""{"code":4""")) {
+            if (response.contains("No data is available on the specified dates.")) {
+              Console.printLine(s"No data available for query: $batchQuery").orDie *>
+                ZIO.fail(TwelveDataError.NoDataForQuery(batchQuery))
             } else {
-              val remoteResponseParsed = parseResponse(response, symbols)
-              ZIO.fromEither(remoteResponseParsed)
-                .mapError(e => TwelveDataError.RemoteException.ofMessage(e))
-                .map(_.map { case (k, v) => k -> v }.toMap)
+              ZIO.fail(TwelveDataError.RemoteException.ofMessage(s"Response: ${response.replaceAll("\n", "")}"))
             }
+          } else {
+            val remoteResponseParsed = parseResponse(response, symbols)
+            ZIO.fromEither(remoteResponseParsed)
+              .mapError(e => TwelveDataError.RemoteException.ofMessage(e))
+              .map(_.map { case (k, v) => k -> v }.toMap)
           }
-        } yield {
-          res2
         }
-      }
-
-      // Calculate total expected bars and number of batches
-      val totalExpectedBars = interval.outputCount
-      val batches = (totalExpectedBars.toDouble / maxOutputSize).ceil.toInt
-
-      // Generate list of batch queries
-      val batchQueries = (1 to batches).toList.map { batchNum =>
-        val batchSize = if (batchNum == batches) totalExpectedBars - (maxOutputSize * (batches - 1)) else maxOutputSize
-        interval.copy(outputCount = batchSize) // Modify other parameters if needed for pagination, like startDate or endDate
-      }
-
-      // Fetch all batches and combine results
-      val fetchTasks: List[ZIO[Any, TwelveDataError, Map[String, PriceBarSeries]]] = batchQueries.map(fetchBatch)
-
-      ZIO.collectAll(fetchTasks).map { results =>
-        results.flatten.toMap
+      } yield {
+        res2
       }
     }
+
+    // Calculate total expected bars and number of batches
+    val totalExpectedBars = interval.outputCount
+    val batches = (totalExpectedBars.toDouble / maxOutputSize).ceil.toInt
+
+    // Generate list of batch queries
+    val batchQueries = (1 to batches).toList.map { batchNum =>
+      val batchSize = if (batchNum == batches) totalExpectedBars - (maxOutputSize * (batches - 1)) else maxOutputSize
+      interval.copy(outputCount = batchSize) // Modify other parameters if needed for pagination, like startDate or endDate
+    }
+
+    // Fetch all batches and combine results
+    val fetchTasks: List[ZIO[Any, TwelveDataError, Map[String, PriceBarSeries]]] = 
+      batchQueries.map(fetchBatch)
+
+    ZIO.collectAll(fetchTasks).map { results =>
+      results.flatten.toMap
+    }
+  }
 
   def fetchHistoricalData(req: TwelveDataComplexDataRequest): Task[TwelveDataHistoricalDataBatchResponse] = {
     import net.specula.twelvedata.client.model.json.JsonCodecs.*
@@ -243,37 +249,36 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   }
 
 
+  def fetchOptionExpirations(symbol: String): Task[OptionExpirations] = {
+    val baseUrl = TwelveDataUrls.baseUrl
+    val apiKeyParam = s"&apikey=${config.apiKey}"
 
-    def fetchOptionExpirations(symbol: String): Task[OptionExpirations] = {
-      val baseUrl = TwelveDataUrls.baseUrl
-      val apiKeyParam = s"&apikey=${config.apiKey}"
+    val url = s"$baseUrl/options/expiration?symbol=$symbol$apiKeyParam"
 
-      val url = s"$baseUrl/options/expiration?symbol=$symbol$apiKeyParam"
+    for {
+      _ <- zio.Console.printLine(s"Fetching option expirations: ${cleanUrl(url)}")
+      res <- Client.request(url).provide(defaultClientLayer)
+      response <- res.body.asString
+      expirations <- ZIO.fromEither(response.fromJson[OptionExpirations])
+        .mapError(new RuntimeException(_))
+    } yield expirations
+  }
 
-      for {
-        _ <- zio.Console.printLine(s"Fetching option expirations: ${cleanUrl(url)}")
-        res <- Client.request(url).provide(defaultClientLayer)
-        response <- res.body.asString
-        expirations <- ZIO.fromEither(response.fromJson[OptionExpirations])
-          .mapError(new RuntimeException(_))
-      } yield expirations
-    }
+  def fetchOptionChain(symbol: String, expiration_date: String): Task[OptionData] = {
+    val baseUrl = TwelveDataUrls.baseUrl
+    val apiKeyParam = s"&apikey=${config.apiKey}"
+    val expirationParam = s"&expiration_date=$expiration_date"
 
-    def fetchOptionChain(symbol: String, expiration_date: String): Task[OptionData] = {
-      val baseUrl = TwelveDataUrls.baseUrl
-      val apiKeyParam = s"&apikey=${config.apiKey}"
-      val expirationParam = s"&expiration_date=$expiration_date"
+    val url = s"$baseUrl/options/chain?symbol=$symbol$expirationParam$apiKeyParam"
 
-      val url = s"$baseUrl/options/chain?symbol=$symbol$expirationParam$apiKeyParam"
-
-      for {
-        _ <- zio.Console.printLine(s"Fetching option chain: ${cleanUrl(url)}")
-        res <- Client.request(url).provide(defaultClientLayer)
-        response <- res.body.asString
-        optionsData <- ZIO.fromEither(response.fromJson[OptionData])
-          .mapError(new RuntimeException(_))
-      } yield optionsData
-    }
+    for {
+      _ <- zio.Console.printLine(s"Fetching option chain: ${cleanUrl(url)}")
+      res <- Client.request(url).provide(defaultClientLayer)
+      response <- res.body.asString
+      optionsData <- ZIO.fromEither(response.fromJson[OptionData])
+        .mapError(new RuntimeException(_))
+    } yield optionsData
+  }
 
 }
 
@@ -295,7 +300,7 @@ object TwelveDataClient:
   def fetchPrices(tickers: String*): ZIO[TwelveDataClient, Throwable, TickerToApiPriceMap] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchPrices(tickers))
 
-  def newSession(tickers: List[String]): ZIO[Scope & TwelveDataClient & TwelveDataClient, Throwable, WebsocketSession] =
+  def newSession(tickers: List[String]): ZIO[Scope & TwelveDataClient, Throwable, WebsocketSession] =
     ZIO.serviceWithZIO[TwelveDataClient](_.newSession(tickers))
 
   /** A ZLayer that creates a TwelveDataClient from its requirements in the Environment */

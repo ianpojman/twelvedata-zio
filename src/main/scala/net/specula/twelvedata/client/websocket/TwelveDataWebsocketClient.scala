@@ -18,10 +18,10 @@ case class WebsocketSession(url: String,
                             tickers: Set[String],
                             queue: Queue[Event]) {
 
-  /** stream raw events from 12data*/
+  /** stream raw events from Twelvedata */
   def stream(): ZStream[Any, Throwable, Event] = ZStream.fromQueue(queue)
 
-  /** return only the price data */
+  /** stream only the price data */
   def streamPrices(): ZStream[Any, Throwable, PriceResponse] =
     stream().map(x => PriceResponse.fromEvent(x)).collect { case Some(p) => p }
 }
@@ -33,6 +33,7 @@ object WebsocketSession:
 
   def socketApp(tickers: List[String],
                 queue: Queue[Event]): Handler[Any, Throwable, WebSocketChannel, Nothing] =
+    
     Handler.webSocket { channel =>
       channel.receiveAll {
         case UserEventTriggered(UserEvent.HandshakeComplete) =>
@@ -52,8 +53,7 @@ object WebsocketSession:
 
         case Read(WebSocketFrame.Text(t)) =>
           //println(s"[${Instant.now}] Got event over websocket: " + t)
-          val maybeE = t.fromJson[Event]
-          maybeE match {
+          t.fromJson[Event] match {
             case Left(e) => ZIO.logWarning(s"Error receiving event: $e")
             case Right(value) => queue.offer(value)
           }

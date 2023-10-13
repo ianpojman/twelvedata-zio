@@ -15,7 +15,6 @@ object TwelveDataError {
   case class RemoteException(t: Throwable) extends TwelveDataError
   case class InvalidQuery(message: String) extends TwelveDataError
 
-
   object RemoteException:
     def ofMessage(s: String): RemoteException = RemoteException(new RuntimeException(s))
   end RemoteException
