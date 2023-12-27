@@ -21,7 +21,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   def fetchEOD(symbol: String): Task[ApiEOD] = {
     val url = TwelveDataUrls.eodUrl(symbol, config)
     for {
-      _ <- zio.Console.printLine(s"Fetching EOD data: ${cleanUrl(url)}")
+      //_ <- zio.Console.printLine(s"Fetching EOD data: ${cleanUrl(url)}")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
       eod <- ZIO.fromEither(response.fromJson[ApiEOD])
@@ -32,7 +32,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   /** Quote has OHLC, volume */
   def fetchQuote(symbols: List[String]): Task[ApiQuote] = for {
     url <- ZIO.attempt(TwelveDataUrls.quoteUrl(symbols, config))
-    _ <- zio.Console.printLine(s"Fetching quotes: ${cleanUrl(url)}")
+    //_ <- zio.Console.printLine(s"Fetching quotes: ${cleanUrl(url)}")
     res <- Client.request(url).provide(defaultClientLayer)
     response <- res.body.asString
     e <- ZIO.fromEither(response.fromJson[ApiQuote]).mapError(new RuntimeException(_))
@@ -69,7 +69,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     import net.specula.twelvedata.client.model.ApiCodecs.*
     val url = TwelveDataUrls.findPriceUrl(symbols, config)
     for {
-      _ <- zio.Console.printLine(s"Fetching prices: ${cleanUrl(url)}")
+      //_ <- zio.Console.printLine(s"Fetching prices: ${cleanUrl(url)}")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
 
@@ -176,7 +176,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
       val url = s"$baseUrl/time_series?interval=$apiName&outputsize=${interval.outputCount}&symbol=$symbolsStr$startDateParam$endDateParam$apiKeyParam"
       for {
-        _ <- zio.Console.printLine(s"Fetching batch: URL: $url").orDie
+//        _ <- zio.Console.printLine(s"Fetching batch: URL: $url").orDie
 
         res: Response <- Client.request(url).provide(defaultClientLayer)
           .mapError(e => TwelveDataError.RemoteException.ofMessage(e.toString))
@@ -284,7 +284,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     val url = s"$baseUrl/options/expiration?symbol=$symbol$apiKeyParam"
 
     for {
-      _ <- zio.Console.printLine(s"Fetching option expirations: ${cleanUrl(url)}")
+//      _ <- zio.Console.printLine(s"Fetching option expirations: ${cleanUrl(url)}")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
       expirations <- ZIO.fromEither(response.fromJson[OptionExpirations])
@@ -300,7 +300,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     val url = s"$baseUrl/options/chain?symbol=$symbol$expirationParam$apiKeyParam"
 
     for {
-      _ <- zio.Console.printLine(s"Fetching option chain: ${cleanUrl(url)}")
+//      _ <- zio.Console.printLine(s"Fetching option chain: ${cleanUrl(url)}")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
       optionsData <- ZIO.fromEither(response.fromJson[OptionData])
