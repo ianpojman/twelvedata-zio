@@ -38,18 +38,19 @@ import zio.json.{DeriveJsonDecoder, DeriveJsonEncoder, JsonDecoder, JsonEncoder,
  */
 @jsonMemberNames(SnakeCase)
 case class ApiQuote private[client](symbol: String,
-                                 name: String,
-                                 exchange: String,
-                                 datetime: String,
-                                 timestamp: Long,
-                                 open: Double,
-                                 close: Double,
-                                 low: Double,
-                                 volume: Long,
-                                 previousClose: String,
-                                 change: Double,
-                                 percentChange: Double,
-                                 averageVolume: Double)
+                                    name: String,
+                                    exchange: String,
+                                    datetime: String,
+                                    timestamp: Long,
+                                    open: Double,
+                                    close: Double,
+                                    low: Double,
+                                    high: Double,
+                                    volume: Long,
+                                    previousClose: String,
+                                    change: Double,
+                                    percentChange: Double,
+                                    averageVolume: Double)
 
 object ApiQuote:
   implicit val decoder: JsonDecoder[ApiQuote] = DeriveJsonDecoder.gen
