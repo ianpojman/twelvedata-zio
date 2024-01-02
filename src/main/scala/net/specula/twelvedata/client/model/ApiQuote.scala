@@ -46,7 +46,7 @@ case class ApiQuote private[client](symbol: String,
                                     close: Double,
                                     low: Double,
                                     high: Double,
-                                    volume: Option[Long],
+                                    volume: Option[Long], // volume should be there for most securities but not for things like FX pairs
                                     previousClose: String,
                                     change: Double,
                                     percentChange: Double,

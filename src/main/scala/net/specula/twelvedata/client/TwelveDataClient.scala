@@ -29,15 +29,6 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     } yield eod
   }
 
-  /** Quote has OHLC, volume */
-  def fetchQuote(symbols: List[String]): Task[ApiQuote] = for {
-    url <- ZIO.attempt(TwelveDataUrls.quoteUrl(symbols, config))
-    //_ <- zio.Console.printLine(s"Fetching quotes: ${cleanUrl(url)}")
-    res <- Client.request(url).provide(defaultClientLayer)
-    response <- res.body.asString
-    e <- ZIO.fromEither(response.fromJson[ApiQuote]).mapError(new RuntimeException(_))
-  } yield e
-
   def newSession(symbols: List[String]): ZIO[Scope & TwelveDataClient, Throwable, WebsocketSession] = {
     for {
       q <- Queue.unbounded[Event]
@@ -45,6 +36,33 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
       sess <- TwelveDataWebsocketClient.streamPrices(symbols, q)
     } yield sess
   }
+
+
+  def fetchQuote(symbol: String): Task[ApiQuote] = {
+    fetchQuotes(List(symbol)).map(_.values.head)
+  }
+
+  /** Quote returns a bar (OHLC, volume) */
+  def fetchQuotes(symbols: List[String]): Task[TickerToApiQuoteMap] = for {
+    url <- ZIO.attempt(TwelveDataUrls.quoteUrl(symbols, config))
+    _ <- zio.Console.printLine(s"Fetching quotes: ${cleanUrl(url)}")
+    res <- Client.request(url).provide(defaultClientLayer)
+    response <- res.body.asString
+    
+    quoteResponse <-
+      (symbols match {
+        case List(singleSymbol) =>
+          ZIO.fromEither(response.fromJson[ApiQuote].map(apiQuote => Map(singleSymbol -> apiQuote)))
+        case _ =>
+          ZIO.fromEither(response.fromJson[TickerToApiQuoteMap])
+      })
+        .mapError(new RuntimeException(_))
+      
+  } yield quoteResponse
+
+  def fetchPrice(symbol: String): Task[ApiPrice] =
+    fetchPrices(List(symbol)).map(_.values.head)
+
 
   /**
    * Fetch current market price for the given symbols.
@@ -65,7 +83,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    *    "AMZN":{"price":"130.64010"},"BTC/USD":{"price":"26575.60000"}
    * }}}
    */
-  def fetchPrices(symbols: Seq[String]): ZIO[Any, Throwable, TickerToApiPriceMap] = {
+  def fetchPrices(symbols: Seq[String]): Task[TickerToApiPriceMap] = {
     import net.specula.twelvedata.client.model.ApiCodecs.*
     val url = TwelveDataUrls.findPriceUrl(symbols, config)
     for {
@@ -116,36 +134,36 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    *        "volume": "867211"
    *      },
    *    ....
-   */
+   **/
   def fetchTimeSeries(interval: TimeSeriesIntervalQuery): ZIO[Any, TwelveDataError, Map[String, PriceBarSeries]] =
 
-  /*
-   * java.lang.RuntimeException: Error on server side
-    at net.specula.v3.marketdata.twelvedata.TwelveDataMarketDataProvider.fetchTimeSeries$$anonfun$1(TwelveDataMarketDataProvider.scala:107)
-    at zio.Cause.map$$anonfun$1(Cause.scala:418)
-    at zio.Cause.flatMap$$anonfun$2(Cause.scala:173)
-    at zio.Cause$$anon$9.failCase(Cause.scala:288)
-    at zio.Cause$$anon$9.failCase(Cause.scala:287)
-    at zio.Cause.loop$2(Cause.scala:221)
-    at zio.Cause.foldContext(Cause.scala:248)
-    at zio.Cause.foldLog(Cause.scala:305)
-    at zio.Cause.flatMap(Cause.scala:179)
-    at zio.Cause.map(Cause.scala:418)
-    at zio.ZIO.mapError$$anonfun$1(ZIO.scala:981)
-    at zio.ZIO.mapErrorCause$$anonfun$1(ZIO.scala:993)
-    at zio.internal.FiberRuntime.runLoop(FiberRuntime.scala:1121)
-    at zio.internal.FiberRuntime.evaluateEffect(FiberRuntime.scala:381)
-    at zio.internal.FiberRuntime.evaluateMessageWhileSuspended(FiberRuntime.scala:504)
-    at zio.internal.FiberRuntime.drainQueueOnCurrentThread(FiberRuntime.scala:220)
-    at zio.internal.FiberRuntime.run(FiberRuntime.scala:139)
-    at zio.internal.ZScheduler$$anon$4.run(ZScheduler.scala:476)
-  Caused by: java.lang.RuntimeException: Response: {"code":429,"message":"You have run out of API credits for the current minute. 56 API credits were used, with the current limit being 55. Wait for the next minute or consider switching to a higher tier plan at https://twelvedata.com/pricing","status":"error"}
-    at net.specula.twelvedata.client.TwelveDataError$RemoteException$.ofMessage(TwelveDataError.scala:20)
-    at net.specula.twelvedata.client.TwelveDataClient.fetchBatch$1$$anonfun$2$$anonfun$3$$anonfun$2$$anonfun$3(TwelveDataClient.scala:159)
-    at zio.ZIO$.fail$$anonfun$1(ZIO.scala:3149)
-    at zio.ZIO$.failCause$$anonfun$1$$anonfun$1$$anonfun$1(ZIO.scala:3158)
-    at zio.internal.FiberRuntime.runLoop(FiberRuntime.scala:890)
-   */
+    /*
+     * java.lang.RuntimeException: Error on server side
+      at net.specula.v3.marketdata.twelvedata.TwelveDataMarketDataProvider.fetchTimeSeries$$anonfun$1(TwelveDataMarketDataProvider.scala:107)
+      at zio.Cause.map$$anonfun$1(Cause.scala:418)
+      at zio.Cause.flatMap$$anonfun$2(Cause.scala:173)
+      at zio.Cause$$anon$9.failCase(Cause.scala:288)
+      at zio.Cause$$anon$9.failCase(Cause.scala:287)
+      at zio.Cause.loop$2(Cause.scala:221)
+      at zio.Cause.foldContext(Cause.scala:248)
+      at zio.Cause.foldLog(Cause.scala:305)
+      at zio.Cause.flatMap(Cause.scala:179)
+      at zio.Cause.map(Cause.scala:418)
+      at zio.ZIO.mapError$$anonfun$1(ZIO.scala:981)
+      at zio.ZIO.mapErrorCause$$anonfun$1(ZIO.scala:993)
+      at zio.internal.FiberRuntime.runLoop(FiberRuntime.scala:1121)
+      at zio.internal.FiberRuntime.evaluateEffect(FiberRuntime.scala:381)
+      at zio.internal.FiberRuntime.evaluateMessageWhileSuspended(FiberRuntime.scala:504)
+      at zio.internal.FiberRuntime.drainQueueOnCurrentThread(FiberRuntime.scala:220)
+      at zio.internal.FiberRuntime.run(FiberRuntime.scala:139)
+      at zio.internal.ZScheduler$$anon$4.run(ZScheduler.scala:476)
+    Caused by: java.lang.RuntimeException: Response: {"code":429,"message":"You have run out of API credits for the current minute. 56 API credits were used, with the current limit being 55. Wait for the next minute or consider switching to a higher tier plan at https://twelvedata.com/pricing","status":"error"}
+      at net.specula.twelvedata.client.TwelveDataError$RemoteException$.ofMessage(TwelveDataError.scala:20)
+      at net.specula.twelvedata.client.TwelveDataClient.fetchBatch$1$$anonfun$2$$anonfun$3$$anonfun$2$$anonfun$3(TwelveDataClient.scala:159)
+      at zio.ZIO$.fail$$anonfun$1(ZIO.scala:3149)
+      at zio.ZIO$.failCause$$anonfun$1$$anonfun$1$$anonfun$1(ZIO.scala:3158)
+      at zio.internal.FiberRuntime.runLoop(FiberRuntime.scala:890)
+     */
     if (interval.outputCount > 5000) {
       ZIO.fail(TwelveDataError.InvalidQuery("Max output size must be <= 5000"))
     } else if (interval.startDate == interval.endDate) {
@@ -176,7 +194,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
       val url = s"$baseUrl/time_series?interval=$apiName&outputsize=${interval.outputCount}&symbol=$symbolsStr$startDateParam$endDateParam$apiKeyParam"
       for {
-//        _ <- zio.Console.printLine(s"Fetching batch: URL: $url").orDie
+        //        _ <- zio.Console.printLine(s"Fetching batch: URL: $url").orDie
 
         res: Response <- Client.request(url).provide(defaultClientLayer)
           .mapError(e => TwelveDataError.RemoteException.ofMessage(e.toString))
@@ -284,7 +302,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     val url = s"$baseUrl/options/expiration?symbol=$symbol$apiKeyParam"
 
     for {
-//      _ <- zio.Console.printLine(s"Fetching option expirations: ${cleanUrl(url)}")
+      //      _ <- zio.Console.printLine(s"Fetching option expirations: ${cleanUrl(url)}")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
       expirations <- ZIO.fromEither(response.fromJson[OptionExpirations])
@@ -300,7 +318,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     val url = s"$baseUrl/options/chain?symbol=$symbol$expirationParam$apiKeyParam"
 
     for {
-//      _ <- zio.Console.printLine(s"Fetching option chain: ${cleanUrl(url)}")
+      //      _ <- zio.Console.printLine(s"Fetching option chain: ${cleanUrl(url)}")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
       optionsData <- ZIO.fromEither(response.fromJson[OptionData])
@@ -314,9 +332,6 @@ object TwelveDataClient:
 
   // ZIO Service pattern - templates for invoking methods of the TwelveDataClient instance from the ZIO environment - https://zio.dev/reference/service-pattern/
 
-  def fetchQuote(symbols: List[String]): ZIO[TwelveDataClient, Throwable, ApiQuote] =
-    ZIO.serviceWithZIO[TwelveDataClient](_.fetchQuote(symbols))
-
   /** Fetch historical data using the time_series endpoint */
   def fetchTimeSeries(intervalQuery: TimeSeriesIntervalQuery): ZIO[TwelveDataClient, TwelveDataError, Map[String, PriceBarSeries]] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchTimeSeries(intervalQuery))
@@ -327,6 +342,15 @@ object TwelveDataClient:
 
   def fetchPrices(tickers: String*): ZIO[TwelveDataClient, Throwable, TickerToApiPriceMap] =
     ZIO.serviceWithZIO[TwelveDataClient](_.fetchPrices(tickers))
+
+  def fetchQuotes(tickers: String*): ZIO[TwelveDataClient, Throwable, TickerToApiQuoteMap] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchQuotes(tickers.toList))
+
+  def fetchPrice(symbol: String): ZIO[TwelveDataClient, Throwable, ApiPrice] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchPrice(symbol))
+
+  def fetchQuote(symbol: String): ZIO[TwelveDataClient, Throwable, ApiQuote] =
+    ZIO.serviceWithZIO[TwelveDataClient](_.fetchQuote(symbol))
 
   def newSession(tickers: List[String]): ZIO[Scope & TwelveDataClient, Throwable, WebsocketSession] =
     ZIO.serviceWithZIO[TwelveDataClient](_.newSession(tickers))

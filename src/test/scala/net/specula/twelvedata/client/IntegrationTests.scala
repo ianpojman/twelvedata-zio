@@ -1,6 +1,6 @@
 package net.specula.twelvedata.client
 
-import net.specula.twelvedata.client.model.{TimeSeriesInterval, TimeSeriesIntervalQuery, TwelveDataComplexDataRequest}
+import net.specula.twelvedata.client.model.{ApiQuote, TimeSeriesInterval, TimeSeriesIntervalQuery, TwelveDataComplexDataRequest}
 import net.specula.twelvedata.client.rest.{ComplexMethod, ComplexMethodList}
 import zio.*
 import zio.test.*
@@ -27,29 +27,29 @@ object IntegrationTests extends ZIOSpecDefault {
     test("fetch time series - multiple tickers") {
       for {
         response <- TwelveDataClient.fetchTimeSeries(
-            TimeSeriesIntervalQuery(
-              symbols = List("AAPL", "MSFT"),
-              timeSeriesInterval = TimeSeriesInterval.OneDay,
-              startDate = Some(LocalDate.parse("2022-04-05")),
-              endDate = Some(LocalDate.parse("2022-04-09")),
-              timezone = "America/New_York"
-            )
+          TimeSeriesIntervalQuery(
+            symbols = List("AAPL", "MSFT"),
+            timeSeriesInterval = TimeSeriesInterval.OneDay,
+            startDate = Some(LocalDate.parse("2022-04-05")),
+            endDate = Some(LocalDate.parse("2022-04-09")),
+            timezone = "America/New_York"
           )
-      } yield assertTrue(response.keySet == Set("AAPL","MSFT"))
+        )
+      } yield assertTrue(response.keySet == Set("AAPL", "MSFT"))
     },
 
     // note that if you want a price at open of a given date, you need to fetch the date after it. here, we want 2022-04-08 open, so we fetch 2022-04-09
     test("fetch time series - getting the price as of a specific date") {
       for {
         response <- TwelveDataClient.fetchTimeSeries(
-            TimeSeriesIntervalQuery(
-              symbols = List("AAPL"),
-              timeSeriesInterval = TimeSeriesInterval.OneDay,
-              endDate = Some(LocalDate.parse("2022-04-09")),
-              timezone = "America/New_York",
-              outputCount = 1
-            )
+          TimeSeriesIntervalQuery(
+            symbols = List("AAPL"),
+            timeSeriesInterval = TimeSeriesInterval.OneDay,
+            endDate = Some(LocalDate.parse("2022-04-09")),
+            timezone = "America/New_York",
+            outputCount = 1
           )
+        )
       } yield {
         val res = response.head._2.values.head
         assertTrue(res.datetime == "2022-04-08")
@@ -69,11 +69,11 @@ object IntegrationTests extends ZIOSpecDefault {
 
       for {
         response <- TwelveDataClient.fetchComplexData(request)
-//        _ <- zio.Console.printLine("RESPONSE = " + response)
+        //        _ <- zio.Console.printLine("RESPONSE = " + response)
       } yield {
         val firstResult = response.dataList.headOption
-//        val responses = response.dataList.map(i => s"Response for symbol ${i.meta.symbol} at interval ${i.meta.interval}, dates = "+i.values.map(_.datetime).mkString(","))
-//        println("Got responses: \n"+responses.mkString("\n"))
+        //        val responses = response.dataList.map(i => s"Response for symbol ${i.meta.symbol} at interval ${i.meta.interval}, dates = "+i.values.map(_.datetime).mkString(","))
+        //        println("Got responses: \n"+responses.mkString("\n"))
         assertTrue(response.status == "ok") &&
           assertTrue(firstResult.map(_.values.size).exists(_ > 1))
       }
@@ -82,7 +82,7 @@ object IntegrationTests extends ZIOSpecDefault {
     test("fetch historical data with multiple tickers and timeframes") {
       val request = TwelveDataComplexDataRequest(
         symbols = List("AAPL", "MSFT"),
-        intervals = List(TimeSeriesInterval.OneMinute,TimeSeriesInterval.FiveMinutes),
+        intervals = List(TimeSeriesInterval.OneMinute, TimeSeriesInterval.FiveMinutes),
         methods = ComplexMethodList.fromComplexMethods(ComplexMethod.timeseries()),
         start_date = Some(LocalDate.parse("2022-04-05")),
         timezone = Some("America/New_York"),
@@ -124,13 +124,23 @@ object IntegrationTests extends ZIOSpecDefault {
         sampleDate <- ZIO.fromOption(response.dates.headOption)
 
         chain <- TwelveDataClient.fetchOptionChain("AAPL", sampleDate)
-        _ <- Console.printLine("Read options chain: "+chain)
+        _ <- Console.printLine("Read options chain: " + chain)
       } yield {
         assertTrue(
           chain.calls
             .headOption
-            .exists(_.last_price>0))
+            .exists(_.last_price > 0))
       }
+    },
+
+    test("fetch quotes") {
+      for {
+        singleResponse <- TwelveDataClient.fetchQuote("AAPL")
+        multipleResponse <- TwelveDataClient.fetchQuotes("AAPL", "MSFT")
+      } yield
+        assertTrue(singleResponse.symbol == "AAPL") &&
+          assertTrue(multipleResponse.keySet == Set("AAPL", "MSFT")
+      )
     },
 
     test("stream realtime prices with websocket") {
@@ -143,5 +153,6 @@ object IntegrationTests extends ZIOSpecDefault {
       }
     } @@ TestAspect.timeout(15.seconds),
 
-  ) .provide(Layers.defaultLayers, Scope.default)
+  ).provide(Layers.defaultLayers, Scope.default)
 }
+

@@ -39,7 +39,7 @@ object PerformanceReport {
 
   private def fetchCurrentPrice(ticker: String): ZIO[TwelveDataClient, Throwable, Double] = {
     for {
-      response <- TwelveDataClient.fetchQuote(List(ticker))
+      response <- TwelveDataClient.fetchQuote(ticker)
         .mapError(_ => new RuntimeException(s"Unable to get current price for $ticker"))
     } yield response.close
   }

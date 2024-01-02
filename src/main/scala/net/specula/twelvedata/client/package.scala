@@ -8,7 +8,5 @@ package object client {
   type TickerToTimeSeriesItemMap = Map[String, PriceBarSeries]
 
   type TickerToApiPriceMap = Map[String, ApiPrice]
-
-
-
+  type TickerToApiQuoteMap = Map[String, ApiQuote]
 }
