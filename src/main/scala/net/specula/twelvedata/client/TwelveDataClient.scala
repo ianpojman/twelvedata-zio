@@ -57,6 +57,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
           ZIO.fromEither(response.fromJson[TickerToApiQuoteMap])
       })
         .mapError(new RuntimeException(_))
+        .tapError(_ => ZIO.logDebug(s"ERROR: Response JSON body was: ${response.replaceAll("\n", "")}"))
 
   } yield quoteResponse
 
@@ -101,7 +102,10 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
           case _ =>
             response.fromJson[TickerToApiPriceMap]
 
-      e <- ZIO.fromEither(multiSymbolResponse).mapError(new RuntimeException(_))
+      e <- ZIO.fromEither(multiSymbolResponse)
+        .mapError(new RuntimeException(_))
+        .tapError(_ => ZIO.logDebug(s"ERROR: Response JSON body was: ${response.replaceAll("\n", "")}"))
+
     } yield e
   }
 
@@ -214,6 +218,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
             ZIO.fromEither(remoteResponseParsed)
               .mapError(e => TwelveDataError.RemoteException.ofMessage(e))
               .map(_.map { case (k, v) => k -> v }.toMap)
+              .tapError(_ => ZIO.logDebug(s"ERROR: Response JSON body was: ${response.replaceAll("\n", "")}"))
           }
         }
       } yield {
@@ -307,6 +312,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
       response <- res.body.asString
       expirations <- ZIO.fromEither(response.fromJson[OptionExpirations])
         .mapError(new RuntimeException(_))
+        .tapError(_ => ZIO.logDebug(s"ERROR: Response JSON body was: ${response.replaceAll("\n", "")}"))
     } yield expirations
   }
 
@@ -323,6 +329,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
       response <- res.body.asString
       optionsData <- ZIO.fromEither(response.fromJson[OptionData])
         .mapError(new RuntimeException(_))
+        .tapError(_ => ZIO.logDebug(s"ERROR: Response JSON body was: ${response.replaceAll("\n", "")}"))
     } yield optionsData
   }
 
