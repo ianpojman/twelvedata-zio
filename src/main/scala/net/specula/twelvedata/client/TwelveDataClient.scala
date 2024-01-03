@@ -21,7 +21,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   def fetchEOD(symbol: String): Task[ApiEOD] = {
     val url = TwelveDataUrls.eodUrl(symbol, config)
     for {
-      //_ <- zio.Console.printLine(s"Fetching EOD data: ${cleanUrl(url)}")
+      _ <- ZIO.logDebug(s"Fetching EOD data: ${cleanUrl(url)}")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
       eod <- ZIO.fromEither(response.fromJson[ApiEOD])
@@ -45,10 +45,10 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   /** Quote returns a bar (OHLC, volume) */
   def fetchQuotes(symbols: List[String]): Task[TickerToApiQuoteMap] = for {
     url <- ZIO.attempt(TwelveDataUrls.quoteUrl(symbols, config))
-    _ <- zio.Console.printLine(s"Fetching quotes: ${cleanUrl(url)}")
+    _ <- ZIO.logDebug(s"Fetching quotes: ${cleanUrl(url)}")
     res <- Client.request(url).provide(defaultClientLayer)
     response <- res.body.asString
-    
+
     quoteResponse <-
       (symbols match {
         case List(singleSymbol) =>
@@ -57,7 +57,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
           ZIO.fromEither(response.fromJson[TickerToApiQuoteMap])
       })
         .mapError(new RuntimeException(_))
-      
+
   } yield quoteResponse
 
   def fetchPrice(symbol: String): Task[ApiPrice] =
@@ -87,7 +87,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     import net.specula.twelvedata.client.model.ApiCodecs.*
     val url = TwelveDataUrls.findPriceUrl(symbols, config)
     for {
-      //_ <- zio.Console.printLine(s"Fetching prices: ${cleanUrl(url)}")
+      _ <- ZIO.logDebug(s"Fetching prices: ${cleanUrl(url)}")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
 
@@ -194,17 +194,17 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
 
       val url = s"$baseUrl/time_series?interval=$apiName&outputsize=${interval.outputCount}&symbol=$symbolsStr$startDateParam$endDateParam$apiKeyParam"
       for {
-        //        _ <- zio.Console.printLine(s"Fetching batch: URL: $url").orDie
+        _ <- zio.ZIO.logDebug(s"Fetching batch: URL: $url")
 
         res: Response <- Client.request(url).provide(defaultClientLayer)
           .mapError(e => TwelveDataError.RemoteException.ofMessage(e.toString))
 
         response <- res.body.asString.mapError(e => TwelveDataError.RemoteException.ofMessage(e.toString))
-        //      _ <- Console.printLine("RESPONSE BODY: \n"+response)
+        //      _ <- ZIO.logDebug("RESPONSE BODY: \n"+response)
         res2 <- {
           if (!res.status.isSuccess || response.contains("""{"code":4""")) {
             if (response.contains("No data is available on the specified dates.")) {
-              Console.printLine(s"No data available for query: $batchQuery").orDie *>
+              ZIO.logDebug(s"No data available for query: $batchQuery") *>
                 ZIO.fail(TwelveDataError.NoDataForQuery(batchQuery))
             } else {
               ZIO.fail(TwelveDataError.RemoteException.ofMessage(s"Response: ${response.replaceAll("\n", "")}"))
@@ -247,7 +247,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     val url = TwelveDataUrls.baseUrl + s"/complex_data?apikey=${config.apiKey}"
 
     for {
-      //      _ <- zio.Console.printLine(s"fetching historical: $url")
+      //      _ <- zio.ZIO.logDebug(s"fetching historical: $url")
 
       res <- Client.request(url, method = Method.POST, content = Body.fromString(req.toJson))
         .provide(defaultClientLayer)
@@ -256,20 +256,20 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
         if (res.status.isSuccess) {
           res.body.asString
         } else {
-          Console.printLine(s"ERROR IN RESPONSE") *>
-            Console.printLine(s"-----------------") *>
-            Console.printLine(s"ERROR: Response headers was: ${res.headers.mkString(",")}") *>
-            Console.printLine(s"ERROR: Response status was: ${res.status}") *>
-            Console.printLine(s"ERROR: Request JSON body was: \n${req.toJson}") *>
-            Console.printLine(s"ERROR: Response JSON body was: \n${res.body.asString}") *>
+          ZIO.logDebug(s"ERROR IN RESPONSE") *>
+            ZIO.logDebug(s"-----------------") *>
+            ZIO.logDebug(s"ERROR: Response headers was: ${res.headers.mkString(",")}") *>
+            ZIO.logDebug(s"ERROR: Response status was: ${res.status}") *>
+            ZIO.logDebug(s"ERROR: Request JSON body was: \n${req.toJson}") *>
+            ZIO.logDebug(s"ERROR: Response JSON body was: \n${res.body.asString}") *>
             ZIO.fail(new RuntimeException(s"Error fetching historical data: ${res.status} ${res.body.asString}"))
         }
 
       remoteResponseParsed <-
         ZIO.fromEither(responseString.fromJson[TwelveDataHistoricalDataBatchResponse])
           .mapError(new RuntimeException(_))
-          .tapError(_ => Console.printLine(s"ERROR: Request JSON body was: ${req.toJson}"))
-          .tapError(_ => Console.printLine(s"ERROR: Response JSON body was: ${responseString.replaceAll("\n", "")}"))
+          .tapError(_ => ZIO.logDebug(s"ERROR: Request JSON body was: ${req.toJson}"))
+          .tapError(_ => ZIO.logDebug(s"ERROR: Response JSON body was: ${responseString.replaceAll("\n", "")}"))
     } yield remoteResponseParsed
   }
 
@@ -302,7 +302,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     val url = s"$baseUrl/options/expiration?symbol=$symbol$apiKeyParam"
 
     for {
-      //      _ <- zio.Console.printLine(s"Fetching option expirations: ${cleanUrl(url)}")
+      _ <- zio.ZIO.logDebug(s"Fetching option expirations: ${cleanUrl(url)}")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
       expirations <- ZIO.fromEither(response.fromJson[OptionExpirations])
@@ -318,7 +318,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
     val url = s"$baseUrl/options/chain?symbol=$symbol$expirationParam$apiKeyParam"
 
     for {
-      //      _ <- zio.Console.printLine(s"Fetching option chain: ${cleanUrl(url)}")
+      _ <- zio.ZIO.logDebug(s"Fetching option chain: ${cleanUrl(url)}")
       res <- Client.request(url).provide(defaultClientLayer)
       response <- res.body.asString
       optionsData <- ZIO.fromEither(response.fromJson[OptionData])
