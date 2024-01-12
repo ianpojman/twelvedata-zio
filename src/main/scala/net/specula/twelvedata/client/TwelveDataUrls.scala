@@ -3,7 +3,7 @@ package net.specula.twelvedata.client
 object TwelveDataUrls {
   val baseUrl = "https://api.twelvedata.com"
 
-  def cleanUrl(url: String): String = url.replaceAll("\\?apikey.*", "")
+  def cleanUrl(url: String): String = url.replaceAll("apikey.*", "")
 
   /**
    * Quote endpoint is an efficient method to retrieve the latest quote of the selected instrument.

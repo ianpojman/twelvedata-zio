@@ -45,7 +45,7 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   /** Quote returns a bar (OHLC, volume) */
   def fetchQuotes(symbols: List[String]): Task[TickerToApiQuoteMap] = for {
     url <- ZIO.attempt(TwelveDataUrls.quoteUrl(symbols, config))
-    _ <- ZIO.logDebug(s"Fetching quotes: ${cleanUrl(url)}")
+    _ <- ZIO.logDebug(s"Fetching ${symbols.size} quote(s): ${cleanUrl(url)}")
     res <- Client.request(url).provide(defaultClientLayer)
     response <- res.body.asString
 
