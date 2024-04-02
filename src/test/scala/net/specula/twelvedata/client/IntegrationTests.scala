@@ -153,6 +153,29 @@ object IntegrationTests extends ZIOSpecDefault {
       }
     } @@ TestAspect.timeout(15.seconds),
 
+    test("time series data is in chronological order") {
+      for {
+        // Fetching time series data for a given ticker and interval.
+        // Adjust the parameters as necessary for your specific use case.
+        response <- TwelveDataClient.fetchTimeSeries(
+          TimeSeriesIntervalQuery(
+            symbols = List("AAPL"),
+            timeSeriesInterval = TimeSeriesInterval.OneDay,
+            startDate = Some(LocalDate.parse("2022-04-05")),
+            endDate = Some(LocalDate.parse("2022-04-09")),
+            timezone = "America/New_York"
+          )
+        )
+        // Assuming `response` is a Map where the key is the symbol and the value is the time series data for that symbol.
+        // Further assuming each data point in `values` has a `datetime` field.
+        dataPoints = response("AAPL").values // Adjust the access method according to the actual structure.
+        // Extracting the datetime fields and parsing them into LocalDate for comparison.
+        dates = dataPoints.map(dataPoint => LocalDate.parse(dataPoint.datetime))
+        // Verifying that the dates list is sorted in ascending order.
+        // This works by checking that each date is not before the previous date in the list.
+        isChronological = dates.zip(dates.tail).forall { case (date1, date2) => !date1.isAfter(date2) }
+      } yield assertTrue(isChronological)
+    }
   ).provide(Layers.defaultLayers, Scope.default)
 }
 

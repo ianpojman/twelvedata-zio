@@ -141,33 +141,6 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
    **/
   def fetchTimeSeries(interval: TimeSeriesIntervalQuery): ZIO[Any, TwelveDataError, Map[String, PriceBarSeries]] =
 
-    /*
-     * java.lang.RuntimeException: Error on server side
-      at net.specula.v3.marketdata.twelvedata.TwelveDataMarketDataProvider.fetchTimeSeries$$anonfun$1(TwelveDataMarketDataProvider.scala:107)
-      at zio.Cause.map$$anonfun$1(Cause.scala:418)
-      at zio.Cause.flatMap$$anonfun$2(Cause.scala:173)
-      at zio.Cause$$anon$9.failCase(Cause.scala:288)
-      at zio.Cause$$anon$9.failCase(Cause.scala:287)
-      at zio.Cause.loop$2(Cause.scala:221)
-      at zio.Cause.foldContext(Cause.scala:248)
-      at zio.Cause.foldLog(Cause.scala:305)
-      at zio.Cause.flatMap(Cause.scala:179)
-      at zio.Cause.map(Cause.scala:418)
-      at zio.ZIO.mapError$$anonfun$1(ZIO.scala:981)
-      at zio.ZIO.mapErrorCause$$anonfun$1(ZIO.scala:993)
-      at zio.internal.FiberRuntime.runLoop(FiberRuntime.scala:1121)
-      at zio.internal.FiberRuntime.evaluateEffect(FiberRuntime.scala:381)
-      at zio.internal.FiberRuntime.evaluateMessageWhileSuspended(FiberRuntime.scala:504)
-      at zio.internal.FiberRuntime.drainQueueOnCurrentThread(FiberRuntime.scala:220)
-      at zio.internal.FiberRuntime.run(FiberRuntime.scala:139)
-      at zio.internal.ZScheduler$$anon$4.run(ZScheduler.scala:476)
-    Caused by: java.lang.RuntimeException: Response: {"code":429,"message":"You have run out of API credits for the current minute. 56 API credits were used, with the current limit being 55. Wait for the next minute or consider switching to a higher tier plan at https://twelvedata.com/pricing","status":"error"}
-      at net.specula.twelvedata.client.TwelveDataError$RemoteException$.ofMessage(TwelveDataError.scala:20)
-      at net.specula.twelvedata.client.TwelveDataClient.fetchBatch$1$$anonfun$2$$anonfun$3$$anonfun$2$$anonfun$3(TwelveDataClient.scala:159)
-      at zio.ZIO$.fail$$anonfun$1(ZIO.scala:3149)
-      at zio.ZIO$.failCause$$anonfun$1$$anonfun$1$$anonfun$1(ZIO.scala:3158)
-      at zio.internal.FiberRuntime.runLoop(FiberRuntime.scala:890)
-     */
     if (interval.outputCount > 5000) {
       ZIO.fail(TwelveDataError.InvalidQuery("Max output size must be <= 5000"))
     } else if (interval.startDate == interval.endDate) {
@@ -236,12 +209,16 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
       interval.copy(outputCount = batchSize) // Modify other parameters if needed for pagination, like startDate or endDate
     }
 
-    // Fetch all batches and combine results
-    val fetchTasks: List[ZIO[Any, TwelveDataError, Map[String, PriceBarSeries]]] =
-      batchQueries.map(fetchBatch)
-
-    ZIO.collectAll(fetchTasks).map { results =>
-      results.flatten.toMap
+    ZIO.foreach(batchQueries)(fetchBatch).map { batchResults =>
+      batchResults
+        .flatten
+        .groupBy(_._1)
+        .view
+        .mapValues(seriesList =>
+          seriesList.flatMap(_._2.values).sortBy(_.datetime) // Directly sort the merged list of values
+        )
+        .toMap
+        .map { case (symbol, sortedValues) => symbol -> PriceBarSeries(sortedValues) }
     }
   }
 
