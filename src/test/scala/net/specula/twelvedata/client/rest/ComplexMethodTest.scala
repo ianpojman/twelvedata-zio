@@ -6,7 +6,7 @@ import zio.test.*
 
 object ComplexMethodTest extends ZIOSpecDefault {
 
-  override def spec: Spec[TestEnvironment with Scope, Any] =
+  override def spec: Spec[TestEnvironment & Scope, Any] =
     suite("")(
       test("encode twelvedata complex_data methods field, emit correct json structure") {
         val method = ComplexMethod(

@@ -1,9 +1,8 @@
-ThisBuild / version := "0.2.0-SNAPSHOT"
+ThisBuild / version := "0.2.1-SNAPSHOT"
 
-ThisBuild / scalaVersion := "3.3.1"
+ThisBuild / scalaVersion := "3.4.1"
 
 val zioVersion = "2.0.20"
-
 
 lazy val root = (project in file("."))
   .settings(

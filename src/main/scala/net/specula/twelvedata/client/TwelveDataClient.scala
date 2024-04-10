@@ -43,23 +43,39 @@ case class TwelveDataClient(client: Client, config: TwelveDataConfig) {
   }
 
   /** Quote returns a bar (OHLC, volume) */
-  def fetchQuotes(symbols: List[String]): Task[TickerToApiQuoteMap] = for {
-    url <- ZIO.attempt(TwelveDataUrls.quoteUrl(symbols, config))
-    _ <- ZIO.logDebug(s"Fetching ${symbols.size} quote(s): ${cleanUrl(url)}")
-    res <- Client.request(url).provide(defaultClientLayer)
-    response <- res.body.asString
+  def fetchQuotes(symbols: List[String], useExtendedPrices:Boolean=false): Task[TickerToApiQuoteMap] = {
+    val quotesMap = for {
+      url <- ZIO.attempt(TwelveDataUrls.quoteUrl(symbols, config))
+      _ <- ZIO.logDebug(s"Fetching ${symbols.size} quote(s): ${cleanUrl(url)}")
+      res <- Client.request(url).provide(defaultClientLayer)
+      response <- res.body.asString
 
-    quoteResponse <-
-      (symbols match {
-        case List(singleSymbol) =>
-          ZIO.fromEither(response.fromJson[ApiQuote].map(apiQuote => Map(singleSymbol -> apiQuote)))
-        case _ =>
-          ZIO.fromEither(response.fromJson[TickerToApiQuoteMap])
-      })
-        .mapError(new RuntimeException(_))
-        .tapError(_ => ZIO.logDebug(s"ERROR: Response JSON body was: ${response.replaceAll("\n", "")}"))
+      quoteResponse <-
+        (symbols match {
+          case List(singleSymbol) =>
+            ZIO.fromEither(response.fromJson[ApiQuote].map(apiQuote => Map(singleSymbol -> apiQuote)))
+          case _ =>
+            ZIO.fromEither(response.fromJson[TickerToApiQuoteMap])
+        })
+          .mapError(new RuntimeException(_))
+          .tapError(_ => ZIO.logDebug(s"ERROR: Response JSON body was: ${response.replaceAll("\n", "")}"))
 
-  } yield quoteResponse
+    } yield quoteResponse
+
+    // apply extended prices if applicable if market is closed and extended price is present
+    quotesMap.map { quoteMap =>
+      quoteMap.map { case (symbol, quote) =>
+        val adjustedQuote =
+          if (!quote.isMarketOpen) {
+            val extendedPrice = quote.extendedPrice.getOrElse(quote.close)
+            quote.copy(close = extendedPrice) // overwrite close with extended price if market's closed
+          } else {
+            quote
+          }
+        symbol -> adjustedQuote
+      }
+    }
+  }
 
   def fetchPrice(symbol: String): Task[ApiPrice] =
     fetchPrices(List(symbol)).map(_.values.head)
