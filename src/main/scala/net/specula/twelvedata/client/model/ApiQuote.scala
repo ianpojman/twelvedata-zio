@@ -53,7 +53,7 @@ case class ApiQuote private[client](symbol: String,
                                     previousClose: String,
                                     change: Double,
                                     percentChange: Double,
-                                    averageVolume: Double,
+                                    averageVolume: Option[Double],
                                     isMarketOpen: Boolean,
                                     extendedPrice: Option[Double])
 

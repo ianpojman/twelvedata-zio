@@ -1,8 +1,8 @@
-ThisBuild / version := "0.2.1-SNAPSHOT"
+ThisBuild / version := "0.3-SNAPSHOT"
 
-ThisBuild / scalaVersion := "3.4.1"
+ThisBuild / scalaVersion := "3.4.2"
 
-val zioVersion = "2.0.20"
+val zioVersion = "2.1.2"
 
 lazy val root = (project in file("."))
   .settings(
@@ -10,9 +10,9 @@ lazy val root = (project in file("."))
   )
 
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-json" % "0.5.0",
-  "dev.zio" %% "zio-config-magnolia" % "4.0.0-RC14",
-  "dev.zio" %% "zio-config-typesafe" % "4.0.0-RC14",
+  "dev.zio" %% "zio-json" % "0.6.2",
+  "dev.zio" %% "zio-config-magnolia" % "4.0.2",
+  "dev.zio" %% "zio-config-typesafe" % "4.0.2",
   "dev.zio" %% "zio-streams" % zioVersion,
   "dev.zio" %% "zio-http" % "3.0.0-RC2"
 )

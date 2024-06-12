@@ -1,6 +1,6 @@
 package net.specula.twelvedata.client.websocket
 
-import net.specula.twelvedata.client.TwelveDataClient
+import net.specula.twelvedata.client.{TwelveDataClient, TwelveDataConfig}
 import net.specula.twelvedata.client.model.{Event, PriceResponse}
 import zio.*
 import zio.http.*
@@ -74,14 +74,12 @@ object TwelveDataWebsocketClient {
    * Opens a websocket with Twelvedata API and streams prices for the given tickers.
    */
   def streamPrices(tickers: Seq[String],
-                   q: Queue[Event]): RIO[Scope & TwelveDataClient, WebsocketSession] = {
+                   q: Queue[Event]): RIO[Scope & Client & TwelveDataConfig, WebsocketSession] = {
     for {
-      client <- ZIO.service[TwelveDataClient]
-      config = client.config
+      config <- ZIO.service[TwelveDataConfig]
       url = s"wss://ws.twelvedata.com/v1/quotes/price?apikey=${config.apiKey}"
       _ <- WebsocketSession.socketApp(tickers.toList, q)
         .connect(url)
-        .provide(Client.default, Scope.default)
         .forkDaemon
     } yield WebsocketSession(url, tickers.toSet, q)
   }

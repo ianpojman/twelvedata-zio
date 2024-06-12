@@ -11,7 +11,7 @@ object TwelveDataUrls {
    * [[https://twelvedata.com/docs#quote]]
    */
   def quoteUrl(symbols: List[String], config: TwelveDataConfig): String =
-    baseUrl + s"/quote?symbol=${symbols.mkString(",")}&apikey=${config.apiKey}"
+    baseUrl + s"/quote?symbol=${symbols.mkString(",")}&prepost=true&apikey=${config.apiKey}"
 
   def findPriceUrl(symbols: Seq[String], config: TwelveDataConfig): String =
     baseUrl + s"/price?symbol=${symbols.mkString(",")}&apikey=${config.apiKey}"

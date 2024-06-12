@@ -1,9 +1,11 @@
 package net.specula.twelvedata.report
 
-import net.specula.twelvedata.client.{Layers, TwelveDataClient}
+import net.specula.twelvedata.TwelveDataClient
+import net.specula.twelvedata.client.{Layers, TwelveDataClient, TwelveDataConfig}
 import net.specula.twelvedata.client.model.{TimeSeriesInterval, TwelveDataComplexDataRequest}
 import net.specula.twelvedata.client.rest.{ComplexMethod, ComplexMethodList}
 import zio.*
+import zio.http.Client
 
 import java.time.OffsetDateTime
 
@@ -23,7 +25,7 @@ object PerformanceReport {
   }
 
   // Define a function to generate the report
-  def generateReport(request: ReportRequest): ZIO[TwelveDataClient, Throwable, Report] = {
+  def generateReport(request: ReportRequest): RIO[TwelveDataClient, Report] = {
     for {
       currentDate <- zio.Clock.currentDateTime
       entries <- ZIO.foreach(request.tickers) { ticker =>
@@ -58,7 +60,7 @@ object PerformanceReport {
       timezone = Some("America/New_York")
     )
     for {
-      response <- TwelveDataClient.fetchComplexData(requestData)
+      response <- TwelveDataClient.fetchHistoricalData(requestData)
 
       values = response.valuesForSymbol(ticker)
 

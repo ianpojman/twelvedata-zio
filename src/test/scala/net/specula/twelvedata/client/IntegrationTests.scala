@@ -13,13 +13,13 @@ object IntegrationTests extends ZIOSpecDefault {
 
     test("fetch single price") {
       for {
-        response <- TwelveDataClient.fetchPrices("BTC/USD")
+        response <- TwelveDataClient.fetchPrices(Seq("BTC/USD"))
       } yield assertTrue(response.keySet.contains("BTC/USD"))
     },
 
     test("fetch multiple prices") {
       for {
-        response <- TwelveDataClient.fetchPrices("BTC/USD", "AAPL")
+        response <- TwelveDataClient.fetchPrices(Seq("BTC/USD", "AAPL"))
       } yield
         assertTrue(response.keySet == Set("AAPL", "BTC/USD"))
     },
@@ -68,7 +68,7 @@ object IntegrationTests extends ZIOSpecDefault {
       )
 
       for {
-        response <- TwelveDataClient.fetchComplexData(request)
+        response <- TwelveDataClient.fetchHistoricalData(request)
         //        _ <- zio.Console.printLine("RESPONSE = " + response)
       } yield {
         val firstResult = response.dataList.headOption
@@ -90,7 +90,7 @@ object IntegrationTests extends ZIOSpecDefault {
       )
 
       for {
-        response <- TwelveDataClient.fetchComplexData(request)
+        response <- TwelveDataClient.fetchHistoricalData(request)
       } yield {
         assertTrue(response.status == "ok") &&
           assertTrue(response.dataList.headOption.map(_.values.size).exists(_ > 1))
@@ -108,7 +108,7 @@ object IntegrationTests extends ZIOSpecDefault {
       )
 
       for {
-        response <- TwelveDataClient.fetchComplexData(request)
+        response <- TwelveDataClient.fetchHistoricalData(request)
         //        _ <- zio.Console.printLine("RESPONSE = "+response)
       } yield {
         assertTrue(response.status == "ok") &&
@@ -136,7 +136,7 @@ object IntegrationTests extends ZIOSpecDefault {
     test("fetch quotes") {
       for {
         singleResponse <- TwelveDataClient.fetchQuote("AAPL")
-        multipleResponse <- TwelveDataClient.fetchQuotes("AAPL", "MSFT")
+        multipleResponse <- TwelveDataClient.fetchQuotes(List("AAPL", "MSFT"))
       } yield
         assertTrue(singleResponse.symbol == "AAPL") &&
           assertTrue(multipleResponse.keySet == Set("AAPL", "MSFT")
