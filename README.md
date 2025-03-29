@@ -1,13 +1,13 @@
 About 
 ---
 
-This is a ZIO client for Twelvedata APIs built using zio-http, zio-json, etc. 
+This is a simple ZIO client for Twelvedata REST API
 
-It's one of the first projects I did using ZIO, so it's not perfect, but I am using this library successfully to build services on top of Twelvedata and ZIO.
+https://twelvedata.com
 
 Configuration
 ---
-To use this library, you need a personal Twelvedata API key which you can get from https://twelvedata.com
+To use this library, obtain a Twelvedata API key which you can get from https://twelvedata.com
 
 Add your Twelvedata API key in ~/.twelvedata.conf in the format `apiKey = "MY_API_KEY"`, e.g.:
 
